@@ -1,0 +1,9 @@
+# 소스 빌드 매핑 — compose.mjs가 빌드 시 이 오버라이드를 함께 사용한다.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: gosariit-app:local
+  db-init:
+    image: gosariit-app:local

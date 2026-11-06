@@ -1,0 +1,22 @@
+# 개발 전용 로컬 인프라. 전체 앱 스택은 루트 compose.yaml(mise run up)을 사용한다.
+name: gosariit-dev-infra
+
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_DB: gosari_public
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dev_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gosari_public"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  dev_pgdata: {}

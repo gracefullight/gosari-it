@@ -1,0 +1,94 @@
+# 고사리잇 (gosari-it)
+
+제주 고사리 채취 동행 AI 에이전트 — 제주 AI·빅데이터 활용 AI Agent 개발 챌린지 출품작.
+
+봄 고사리철의 **날씨 비교 · 경험 기록 · 가족·지인 나눔 · 가격 정보 확인**을 하나의 대화로 연결합니다.
+자연어 이해·계획·설명은 LLM(GPT-6 Luna)이, 자료 검사·집계·비교·개인 변경은 결정론적 코드와 확인 폼이 담당합니다.
+
+## 빠른 시작 (mise + Docker Compose)
+
+사전 조건: [mise](https://mise.jdx.dev), 로컬 Docker 엔진(OrbStack/Docker Desktop), 프로젝트 검토.
+
+```sh
+mise trust
+mise install --locked
+bun install
+uv sync --all-packages
+mise run up
+```
+
+정상이면 호스트에서 **http://127.0.0.1:8765** 로 접속합니다. loopback만 publish됩니다.
+
+- 키 미설정·외부 통신 비활성은 **제한 모드**로 동작합니다(고정 검증 표본 재생 + 로컬 수첩/나눔).
+  유료 API 호출이 readiness의 선행조건이 아닙니다.
+- 최초 `mise run up`은 이미지를 빌드합니다. 이후 시작은 빠르게 재사용됩니다.
+
+### 운영 명령
+
+| 명령 | 동작 |
+|---|---|
+| `mise run doctor` | Docker·lock·포트·정책 검사 |
+| `mise run init` | 로컬 설정/비밀 생성 (덮어쓰기 없음) |
+| `mise run up` | 빌드 → DB → 초기화(migration) → 앱 → readiness 확인 |
+| `mise run status` | 컨테이너·기능 가용성 |
+| `mise run logs` | 최근 로그 (비식별) |
+| `mise run down` | 컨테이너 정리, 공개 DB 볼륨 유지 |
+| `mise run reset -- --confirm=gosariit-local` | 공개 DB 볼륨 삭제 (명시 확인 필수) |
+
+### 개발 모드 (네이티브)
+
+```sh
+mise run infra:up     # 개발용 PostgreSQL 18/pgvector
+mise run db:migrate
+mise run dev          # API(8000) + Vite(5173, /api 프록시)
+```
+
+## 다섯 기능
+
+1. **나들이 동행** — 후보 날짜·지역의 관측/예보 비교 (관측과 예보 구분)
+2. **지역 탐색** — 지도에서 기존·관심 지역 선택, 관측소·기간 비교
+3. **내 수첩** — 세션 한정 경험 기록 (미리보기 → 확정 → 변경)
+4. **가족·지인 나눔** — 대상·분량·시점 정리, 로컬 문구 준비 (실제 전송 없음)
+5. **가격 조사** — 도매 정산·지역 조사가·상품 표시가를 채널별로 구분
+
+## 안전 경계
+
+- 개인 기록·별칭·정확 좌표는 **외부 LLM·공용 캐시·운영 로그로 전송되지 않습니다.**
+- 모든 개인 변경은 `preview → 사용자 확인 → consent → commit` 승인 프로토콜을 거치며 멱등입니다.
+- 공개 분석은 허용 필드 allowlist DTO로만 전송하고, 결정론 계산을 사실 원장으로 삼습니다.
+- 숫자 0(valid_zero)·결측(missing)·의미 미확정 공란(unresolved_blank)을 구분합니다.
+
+## 검증
+
+```sh
+mise run test        # API 회귀(고정 표본 기대값) + 웹 테스트
+mise run lint
+mise run typecheck
+```
+
+고정 회귀 기대값(SRS §10.6): 선흘 2023 강수 21/51일·2024 24/61일,
+공통 월일 04-11~05-31 51일에서 21/20, 제주184 강수 양수 24·숫자 0 8·공란 29,
+상품 200g 32,500원 → 162,500원/kg 환산.
+
+## 프로파일별 기능 행렬
+
+| 기능 | center(기본) | replay | live(외부 요청 승인) |
+|---|---|---|---|
+| 공개 분석(고정 표본) | ✓ 재생 표시 | ✓ | ✓ |
+| 원천 실조회 | ✗ | ✗ | ✓ (키·게이트 필요) |
+| LLM 설명 | 키 있으면 | ✗ | ✓ |
+| 수첩·나눔·지역(세션) | ✓ | ✓ | ✓ |
+| 파일 내보내기/불러오기 | ✗ (정책 미확인) | ✗ | 정책 승인 후 |
+| 지도 타일 | 설정 시 | 설정 시 | ✓ |
+
+## 문서
+
+- [설치·운영 매뉴얼](docs/install-manual.md)
+- [원천 어댑터 매뉴얼](docs/adapter-manual.md)
+- [데이터 활용 명세](docs/data-usage.md)
+- 기준 명세: 고사리잇 SRS v1.2 (별도 제공 기획 자료)
+
+## 라이선스
+
+MIT — [LICENSE](LICENSE). KRDS-TW(@gracefullight/krds-tw) MIT 사용.
+지도 데이터 © OpenStreetMap contributors (ODbL). 캐릭터는 전용 제작 이미지이며 제주 공식 마스코트가 아닙니다.

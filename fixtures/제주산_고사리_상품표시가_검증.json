@@ -1,0 +1,47 @@
+[
+  {
+    "source": "탐나오",
+    "url": "https://www.tamnao.com/web/sv/detailPrdt.do?prdtNum=SV00004060",
+    "product": "서귀포산림조합 제주 한라산 건고사리",
+    "originLabel": "제주특별자치도 서귀포시",
+    "form": "건고사리",
+    "optionLabel": "50g X 2봉",
+    "weight_g": 100,
+    "displayPriceWon": 17000,
+    "shippingWon": 4000,
+    "observationDate": "2026-11-05",
+    "priceType": "상품 표시 판매가",
+    "transactionVerified": false
+  },
+  {
+    "source": "탐나오",
+    "url": "https://www.tamnao.com/web/sv/detailPrdt.do?prdtNum=SV00004060",
+    "product": "서귀포산림조합 제주 한라산 건고사리",
+    "originLabel": "제주특별자치도 서귀포시",
+    "form": "건고사리",
+    "optionLabel": "200g",
+    "weight_g": 200,
+    "displayPriceWon": 32500,
+    "shippingWon": 4000,
+    "observationDate": "2026-11-05",
+    "priceType": "상품 표시 판매가",
+    "transactionVerified": false
+  },
+  {
+    "source": "오아시스마켓",
+    "url": "https://m.oasis.co.kr/product/detail/20342?categoryId=",
+    "product": "제주 건고사리 80g",
+    "producer": "농업회사법인(주)프롬제주",
+    "originLabel": "국내산(제주도)",
+    "form": "건고사리",
+    "weight_g": 80,
+    "displayPriceWon": 14800,
+    "couponPriceWon": 11840,
+    "couponConditional": true,
+    "shippingWon": 5000,
+    "freeShippingThresholdWon": 30000,
+    "observationDate": "2026-11-05",
+    "priceType": "상품 표시 판매가",
+    "transactionVerified": false
+  }
+]

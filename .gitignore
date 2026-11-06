@@ -9,3 +9,32 @@ docs/plans/
 .migration-backup/
 .qwen/tmp/
 .agent-valley/
+
+# local settings & secrets (SRS 실행환경 v1.2)
+.local/
+.env
+.env.*
+!.env.example
+
+# node / bun
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+
+# python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.pyrefly_cache/
+htmlcov/
+.coverage
+
+# mise / tools
+.mise/
+
+# os
+.DS_Store

@@ -1,0 +1,114 @@
+# 고사리잇 로컬 스택 (SRS 실행환경 v1.2). 시작: mise run up
+name: gosariit-local
+
+x-app-runtime: &app-runtime
+  image: ${GOSARI_APP_IMAGE:-gosariit-app:local}
+  user: "10001:10001"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,nosuid,noexec,size=128m
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+  stop_grace_period: 30s
+  restart: "no"
+
+services:
+  db:
+    image: ${GOSARI_DB_IMAGE:-pgvector/pgvector:pg18}
+    environment:
+      POSTGRES_DB: gosari_public
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      PGDATA: /var/lib/postgresql/18/docker
+    secrets: [db_admin_password]
+    volumes:
+      - public_pgdata:/var/lib/postgresql
+    networks: [db_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gosari_public"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stop_grace_period: 30s
+    restart: "no"
+
+  db-init:
+    <<: *app-runtime
+    command: ["python", "-m", "gosari.ops.bootstrap_public_db"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: gosari_public
+      DB_USER: gosari_app
+      DB_ADMIN_PASSWORD_FILE: /run/secrets/db_admin_password
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+    secrets: [db_admin_password, db_app_password]
+    networks: [db_internal]
+
+  app:
+    <<: *app-runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${APP_PORT:-8765}:8765"
+    environment:
+      APP_PROFILE: ${APP_PROFILE:-center}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: gosari_public
+      DB_USER: gosari_app
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      LLM_MODEL: gpt-6-luna
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      EXTERNAL_REQUESTS_ENABLED: ${EXTERNAL_REQUESTS_ENABLED:-false}
+      ALLOW_NOTEBOOK_IMPORT: "false"
+      ALLOW_NOTEBOOK_EXPORT: "false"
+      ALLOW_SHARE_FILE: "false"
+      RESPONSE_CACHE_ENABLED: ${RESPONSE_CACHE_ENABLED:-true}
+      TILE_PROVIDER_CONFIG: ${TILE_PROVIDER_CONFIG:-}
+      DOMAIN_THRESHOLD_CONFIG: ${DOMAIN_THRESHOLD_CONFIG:-}
+      JEJU_PROJECT_KEY: ${JEJU_PROJECT_KEY:-}
+      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-}
+      AT_SERVICE_KEY: ${AT_SERVICE_KEY:-}
+    secrets: [db_app_password, openai_api_key]
+    networks: [db_internal, app_egress]
+    healthcheck:
+      test: ["CMD", "python", "-m", "gosari.ops.healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
+
+volumes:
+  public_pgdata: {}
+
+networks:
+  db_internal:
+    internal: true
+  app_egress: {}
+
+secrets:
+  db_admin_password:
+    file: .local/secrets/db_admin_password
+  db_app_password:
+    file: .local/secrets/db_app_password
+  openai_api_key:
+    file: .local/secrets/openai_api_key
