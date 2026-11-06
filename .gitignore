@@ -8,3 +8,4 @@
 docs/plans/
 .migration-backup/
 .qwen/tmp/
+.agent-valley/

@@ -6,6 +6,10 @@ startup_timeout_sec = 90
 [mcp_servers.serena.env]
 SERENA_LOG_LEVEL = "info"
 
+[mcp_servers.av]
+command = "av"
+args = [ "mcp", "--workspace", "/Users/gracefullight/workspace/gosari-it" ]
+
 [features]
 goals = true
 
