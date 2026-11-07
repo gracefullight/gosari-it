@@ -34,8 +34,10 @@ mise run up             # init → doctor → build → db → db-init → app �
 - API 설정과 비밀은 `apps/api/.env`에 둔다. 예시는 `apps/api/.env.example`을 사용한다.
   `DB_ADMIN_PASSWORD`, `DB_PASSWORD`, 모델·기관 API 키와 `VWORLD_DOMAIN`을 이 파일에서 관리한다.
 - 웹 설정은 `apps/web/.env`에 둔다. `VITE_` 변수는 브라우저에 포함되므로 서버 비밀을 넣지 않는다.
-- Compose도 같은 `apps/api/.env`를 사용한다. DB 비밀번호는 이 환경변수에서 Docker 런타임 secret으로 전달하고,
-  앱에는 관리자 비밀번호를 전달하지 않는다. 이미지 참조(`GOSARI_APP_IMAGE`, `GOSARI_DB_IMAGE`)와 `APP_PORT`도 API 설정에 둔다.
+- Compose도 같은 `apps/api/.env`를 사용한다. PostgreSQL의 관리자 비밀번호만 Docker 런타임 secret으로 전달한다.
+  읽기 전용 파일시스템인 앱은 `DB_PASSWORD`를 환경변수로 받고, 관리자 비밀번호는 빈값으로 덮어쓴다.
+  `db-init`에는 필요한 DB 관리자·앱 비밀번호만 전달한다. 선택적으로 명시한 `*_FILE` 설정도 지원한다.
+  이미지 참조(`GOSARI_APP_IMAGE`, `GOSARI_DB_IMAGE`)와 `APP_PORT`도 API 설정에 둔다.
 - 기존 DB를 연결할 때는 현재 DB 비밀번호를 그대로 유지한다. `.env`를 새로 만들어도 기존 DB 역할의 비밀번호가 바뀌지는 않는다.
 - `.local/`은 로그·PID·lock·빌드 매니페스트 등 실행 산출물에만 사용한다. 기존 DB 볼륨은 유지한다.
 - 실제 `.env`는 Git·이미지 빌드 컨텍스트·로그에서 제외한다.
@@ -70,6 +72,15 @@ mise run up             # init → doctor → build → db → db-init → app �
 - Windows native 경로(별도 검증): Proactor + psycopg3 동기 풀/제한 스레드풀.
 - Docker Desktop 라이선스·WSL2 승인·보안 정책을 먼저 확인한다. Docker 금지 시
   무단 설치/DLP 우회 없이 native/replay 대안을 사용한다.
+
+### 네이티브 API의 로컬 DB
+
+`mise run infra:up`은 `gosariit-local` 프로젝트의 `compose.yaml`과 `compose.native.yaml`을 함께 사용해
+DB만 시작한다. 기존 PostgreSQL 이미지와 `public_pgdata` 볼륨을 재사용하며 빌드·pull·앱 시작은 하지 않는다.
+네이티브 API의 `apps/api/.env`에는 `DB_HOST=127.0.0.1`, `DB_PORT=15432`와 기존 DB 비밀번호를 둔다.
+호스트 공개는 `127.0.0.1:15432`에 한정하고, 컨테이너 앱은 계속 내부 `db:5432`로 연결한다.
+일반 Compose의 DB 내부망 구성은 유지하며 native override에서만 loopback 포트와 bridge를 추가한다.
+`mise run infra:down`은 같은 DB 서비스에 `stop`만 실행하므로 컨테이너·볼륨·기록을 삭제하지 않는다.
 
 ## 8. 문제 해결
 

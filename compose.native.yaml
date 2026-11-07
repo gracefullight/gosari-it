@@ -1,0 +1,12 @@
+# 네이티브 API가 기존 로컬 DB 볼륨을 loopback 포트로 사용한다.
+services:
+  db:
+    ports:
+      - "127.0.0.1:${DB_PORT:-15432}:5432"
+    networks:
+      - db_internal
+      - native_access
+
+networks:
+  native_access:
+    driver: bridge

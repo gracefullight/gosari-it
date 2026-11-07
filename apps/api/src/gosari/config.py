@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     db_user: str = "gosari_app"
     db_password: str | None = None
     db_password_file: str | None = None
+    db_admin_password: str | None = None
     db_admin_password_file: str | None = None
     db_pool_min: int = 1
     db_pool_max: int = 8
@@ -113,6 +114,12 @@ class Settings(BaseSettings):
     @property
     def resolved_vworld_api_key(self) -> str | None:
         return (self.vworld_api_key or "").strip() or read_secret_file(self.vworld_api_key_file)
+
+    @property
+    def resolved_db_admin_password(self) -> str | None:
+        return (self.db_admin_password or "").strip() or read_secret_file(
+            self.db_admin_password_file
+        )
 
     @property
     def resolved_db_password(self) -> str | None:

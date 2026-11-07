@@ -10,12 +10,7 @@ from gosari.config import get_settings
 
 def main() -> int:
     settings = get_settings()
-    admin_password = ""
-    admin_file = settings.db_admin_password_file
-    if admin_file:
-        admin_path = Path(admin_file)
-        if admin_path.is_file():
-            admin_password = admin_path.read_text(encoding="utf-8").strip()
+    admin_password = settings.resolved_db_admin_password or ""
     app_password = settings.resolved_db_password or ""
     dsn = (
         f"host={settings.db_host} port={settings.db_port} dbname={settings.db_name} "

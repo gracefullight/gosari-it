@@ -74,6 +74,10 @@ function composeArgs(extra = []) {
   return ["compose", "--env-file", "apps/api/.env", "-p", PROJECT, "-f", "compose.yaml", ...extra];
 }
 
+function nativeComposeArgs(extra = []) {
+  return composeArgs(["-f", "compose.native.yaml", ...extra]);
+}
+
 let lockHeld = false;
 function acquireLock() {
   mkdirSync(LOCAL, { recursive: true });
@@ -242,6 +246,50 @@ async function status() {
   log(JSON.stringify(capabilities, null, 2));
 }
 
+function nativeUp() {
+  acquireLock();
+  try {
+    if (!existsSync(API_ENV) || !existsSync(join(ROOT, "compose.native.yaml"))) {
+      fail("apps/api/.env 및 compose.native.yaml이 필요합니다.");
+    }
+    const api = parseEnvFile(API_ENV);
+    if (!api.DB_ADMIN_PASSWORD || !api.DB_PASSWORD) {
+      fail("apps/api/.env의 기존 DB_ADMIN_PASSWORD 및 DB_PASSWORD를 유지해 설정하세요.");
+    }
+    run(
+      "docker",
+      nativeComposeArgs([
+        "up",
+        "-d",
+        "--no-build",
+        "--pull",
+        "never",
+        "--no-deps",
+        "--wait",
+        "--wait-timeout",
+        "60",
+        "db",
+      ])
+    );
+    log(`✓ 네이티브 DB 준비 완료 — 127.0.0.1:${api.DB_PORT || "15432"}`);
+  } finally {
+    releaseLock();
+  }
+}
+
+function nativeDown() {
+  acquireLock();
+  try {
+    if (!existsSync(API_ENV) || !existsSync(join(ROOT, "compose.native.yaml"))) {
+      fail("apps/api/.env 및 compose.native.yaml이 필요합니다.");
+    }
+    run("docker", nativeComposeArgs(["stop", "db"]));
+    log("✓ 네이티브 DB 중지 — 기존 컨테이너와 데이터 볼륨 유지");
+  } finally {
+    releaseLock();
+  }
+}
+
 function logs() {
   run("docker", [...composeArgs(), "logs", "--tail", "150", "--no-color", "app", "db"]);
 }
@@ -275,7 +323,17 @@ function reset() {
 }
 
 const command = process.argv[2];
-const commands = { doctor, init, up, status, logs, down, reset };
+const commands = {
+  doctor,
+  init,
+  up,
+  status,
+  logs,
+  down,
+  reset,
+  "native-up": nativeUp,
+  "native-down": nativeDown,
+};
 if (!commands[command]) {
   fail(`사용법: node scripts/compose.mjs <${Object.keys(commands).join("|")}>`);
 }

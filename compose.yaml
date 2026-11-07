@@ -55,9 +55,8 @@ services:
       DB_PORT: "5432"
       DB_NAME: gosari_public
       DB_USER: gosari_app
-      DB_ADMIN_PASSWORD_FILE: /run/secrets/db_admin_password
-      DB_PASSWORD_FILE: /run/secrets/db_app_password
-    secrets: [db_admin_password, db_app_password]
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD}
     networks: [db_internal]
 
   app:
@@ -78,13 +77,12 @@ services:
       DB_NAME: gosari_public
       DB_USER: gosari_app
       DB_DSN: ""
-      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      DB_PASSWORD_FILE: ""
       DB_ADMIN_PASSWORD: ""
       DB_ADMIN_PASSWORD_FILE: ""
       DB_ADMIN_DSN: ""
       KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
       AT_SERVICE_KEY: ${AT_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
-    secrets: [db_app_password]
     networks: [db_internal, app_egress]
     healthcheck:
       test: ["CMD", "python", "-m", "gosari.ops.healthcheck"]
@@ -104,5 +102,3 @@ networks:
 secrets:
   db_admin_password:
     environment: DB_ADMIN_PASSWORD
-  db_app_password:
-    environment: DB_PASSWORD

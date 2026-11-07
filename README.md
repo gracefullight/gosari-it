@@ -39,12 +39,17 @@ mise run up
 
 ```sh
 mise run init         # apps/api/.env, apps/web/.env 생성 (기존 값 유지)
-mise run infra:up     # 개발용 PostgreSQL 18/pgvector
+mise run infra:up     # 같은 gosariit-local DB·볼륨을 127.0.0.1:15432로 연결
 mise run db:migrate
 mise run dev          # API(8000) + Vite(5173, /api 프록시)
 ```
 
 API 설정과 DB·OpenAI·공공 API 키는 `apps/api/.env`에서 관리한다. 웹의 `VITE_*` 설정은 `apps/web/.env`에서 관리한다. 각 앱은 자기 `.env`를 읽으며 기존 환경변수를 우선한다. 예제는 각 앱의 `.env.example`에 있다.
+
+네이티브 API는 `DB_HOST=127.0.0.1`, `DB_PORT=15432`를 사용한다. `infra:up`은
+`compose.yaml`과 `compose.native.yaml`의 DB 서비스만 기존 이미지로 시작하며 빌드·pull·앱 재시작을 하지 않는다.
+컨테이너 앱은 같은 DB를 내부 주소 `db:5432`로 사용한다. `mise run infra:down`은 DB만 중지하고
+컨테이너와 데이터 볼륨을 유지한다. 일반 Compose 실행의 DB는 호스트 포트 없이 내부망에 둔다.
 
 ## 다섯 기능
 

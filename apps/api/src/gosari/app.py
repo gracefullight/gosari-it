@@ -102,6 +102,8 @@ class SPAStaticMiddleware:
         if (
             scope["type"] != "http"
             or path.startswith("/api")
+            or path == "/schema"
+            or path.startswith("/schema/")
             or scope["method"] not in ("GET", "HEAD")
         ):
             await self.app(scope, receive, send)
