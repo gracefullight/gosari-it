@@ -1,9 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAtom, useSetAtom, useStore } from "jotai";
 import { useCallback } from "react";
-import { applyAgentEvent, emptyAgentState } from "@/lib/agent-chat";
+import {
+  applyAgentEvent,
+  emptyAgentState,
+  getAgentChatHistory,
+  readPersonalForm,
+  readPersonalSearchSummary,
+} from "@/lib/agent-chat";
 import { AgentStreamDisconnectedError } from "@/lib/agent-stream";
 import { type AnalysisStreamOptions, cancelAnalysisJob } from "@/lib/analysis-jobs";
+import { trackChatUsage } from "@/lib/google-analytics";
 import { ApiError, api } from "@/lib/gosari.api";
 import type { JobResult } from "@/lib/gosari.types";
 import type { ChatMessage, Feature } from "@/stores/chat.atoms";
@@ -94,6 +101,15 @@ export function useChat() {
                 message.id === id
                   ? {
                       ...message,
+                      personal_search:
+                        readPersonalSearchSummary(progress.personal_search) ??
+                        message.personal_search,
+                      personal_form:
+                        readPersonalForm(progress.personal_form) ?? message.personal_form,
+                      ui_spec: progress.ui_spec ?? message.ui_spec,
+                      ui_results: { ...message.ui_results, ...progress.ui_results },
+                      ui_selection_source:
+                        progress.ui_selection_source ?? message.ui_selection_source,
                       stream: { ...(message.stream ?? emptyAgentState()), job_id: progress.job_id },
                     }
                   : message
@@ -112,6 +128,12 @@ export function useChat() {
             message.id === id
               ? {
                   ...message,
+                  personal_search:
+                    readPersonalSearchSummary(job.personal_search) ?? message.personal_search,
+                  personal_form: readPersonalForm(job.personal_form) ?? message.personal_form,
+                  ui_spec: job.ui_spec ?? message.ui_spec,
+                  ui_results: { ...message.ui_results, ...job.ui_results },
+                  ui_selection_source: job.ui_selection_source ?? message.ui_selection_source,
                   envelope: job.result ?? message.envelope,
                   error: job.error ?? message.error,
                   stream: {
@@ -128,6 +150,7 @@ export function useChat() {
               : message
           )
         );
+        if (job.stage === "completed" || job.stage === "partial") trackChatUsage("complete");
       } catch (error) {
         setMessages((prev) =>
           prev.map((message) =>
@@ -237,6 +260,8 @@ export function useChat() {
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      const history = getAgentChatHistory(store.get(messagesAtom));
+      trackChatUsage("send");
       setOnboardingDone(true);
       setActiveFeature(null);
       setLastCommitNotice(null);
@@ -249,7 +274,7 @@ export function useChat() {
         const conversation = conversationId ?? crypto.randomUUID();
         if (!conversationId) setConversationId(conversation);
         const response = await api.chat(
-          { text: trimmed, conversation_id: conversation },
+          { text: trimmed, conversation_id: conversation, history },
           controller.signal
         );
         if (controller.signal.aborted) {
@@ -284,6 +309,7 @@ export function useChat() {
       }
     },
     [
+      store,
       push,
       runSpec,
       runChat,
@@ -302,7 +328,7 @@ export function useChat() {
       if (!pageFeature) {
         push({ role: "user", kind: "text", text: label });
       }
-      void runSpec(spec, label, pageFeature);
+      return runSpec(spec, label, pageFeature);
     },
     [activeFeature, push, runSpec]
   );
@@ -338,7 +364,7 @@ export function useChat() {
     async (messageId: string) => {
       const message = messages.find((item) => item.id === messageId);
       const jobId = message?.stream?.job_id;
-      if (!jobId) return;
+      if (!jobId) return false;
       try {
         await cancelAnalysisJob(jobId);
         setMessages((prev) =>
@@ -356,6 +382,7 @@ export function useChat() {
           )
         );
         if (!streams.has(messageId)) resumeStream(messageId);
+        return true;
       } catch {
         setMessages((prev) =>
           prev.map((item) =>
@@ -364,10 +391,34 @@ export function useChat() {
               : item
           )
         );
+        return false;
       }
     },
     [messages, setMessages, resumeStream]
   );
+
+  const stopResponse = useCallback(async () => {
+    const active = store
+      .get(messagesAtom)
+      .filter(
+        (message) =>
+          message.stream?.status === "streaming" || message.stream?.status === "disconnected"
+      );
+    let aborted = false;
+    for (const handle of streams.values())
+      if (!handle.jobId) {
+        handle.controller.abort();
+        aborted = true;
+      }
+    const results = await Promise.all(
+      active.filter((message) => message.stream?.job_id).map((message) => cancelStream(message.id))
+    );
+    if (aborted && !active.length)
+      push({ role: "assistant", kind: "text", text: "답변 받기를 중지했습니다." });
+    const success = results.every(Boolean);
+    if (success) trackChatUsage("stop");
+    return success;
+  }, [store, cancelStream, push]);
 
   const resetConversation = useCallback(() => {
     for (const handle of streams.values()) {
@@ -377,7 +428,7 @@ export function useChat() {
     streams.clear();
     void queryClient.cancelQueries({ queryKey: ["analysis", "stream"] });
     setMessages([]);
-    setConversationId(null);
+    setConversationId(crypto.randomUUID());
     setLastCommitNotice(null);
     setActiveFeature(null);
     window.requestAnimationFrame(() =>
@@ -387,12 +438,14 @@ export function useChat() {
 
   return {
     messages,
+    conversationId,
     send,
     confirmSpec,
     runSpec,
     openFeature,
     push,
     cancelStream,
+    stopResponse,
     resumeStream,
     resetConversation,
   };

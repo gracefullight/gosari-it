@@ -12,7 +12,11 @@ describe("DatePickerField", () => {
     );
     expect(document.querySelector('input[type="date"]')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "채취 날짜" }));
-    expect(await screen.findByRole("combobox", { name: "월 선택" })).toBeTruthy();
+    const month = (await screen.findByRole("combobox", { name: "월 선택" })) as HTMLSelectElement;
+    expect([...month.options].map((option) => option.textContent)).toEqual(
+      Array.from({ length: 12 }, (_, index) => `${index + 1}월`)
+    );
+    expect(month.selectedOptions[0].textContent).toBe("11월");
     expect(screen.getByRole("combobox", { name: "연도 선택" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "2026-11-09 선택" }));
     expect(change).toHaveBeenCalledWith("2026-11-09");

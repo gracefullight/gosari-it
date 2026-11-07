@@ -6,12 +6,14 @@ import {
 } from "@/lib/analysis-jobs";
 import type {
   ActionResult,
+  AgentChatRequest,
   AgentChatResponse,
   Capabilities,
   Consent,
   JobResult,
   NotebookEntry,
   PersonalContact,
+  PersonalSearchKind,
   PersonalSearchResponse,
   PrepareResponse,
   Preview,
@@ -102,7 +104,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  chat: (body: { text: string; conversation_id?: string }, signal?: AbortSignal) =>
+  chat: (body: AgentChatRequest, signal?: AbortSignal) =>
     request<AgentChatResponse>("/api/v1/analysis/chat", {
       method: "POST",
       body: JSON.stringify(body),
@@ -169,10 +171,10 @@ export const api = {
     }),
   shareList: () => request<{ drafts: ShareDraft[] }>("/api/v1/share/"),
   contactsList: () => request<{ contacts: PersonalContact[] }>("/api/v1/contacts/"),
-  personalSearch: (query: string) =>
+  personalSearch: (query: string, kind?: PersonalSearchKind) =>
     request<PersonalSearchResponse>("/api/v1/personal/search", {
       method: "POST",
-      body: JSON.stringify({ query, limit: 20 }),
+      body: JSON.stringify({ query, kind, limit: 20 }),
     }),
   contactsPrepare: (
     payload: Record<string, unknown>,

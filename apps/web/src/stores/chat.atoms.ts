@@ -2,7 +2,11 @@ import { atom } from "jotai";
 import { FEATURE_PATHS, type Feature, resolveAppRoute } from "@/lib/app-routes";
 import type {
   AgentChatState,
+  AgentUISelectionSource,
+  AgentUISpec,
   Capabilities,
+  PersonalFormFeature,
+  PersonalSearchSummary,
   PrepareResponse,
   Preview,
   ResultEnvelope,
@@ -21,6 +25,11 @@ export interface ChatMessage {
   preview?: Preview;
   error?: string;
   stream?: AgentChatState;
+  ui_spec?: AgentUISpec;
+  ui_results?: Record<string, ResultEnvelope>;
+  ui_selection_source?: AgentUISelectionSource;
+  personal_search?: PersonalSearchSummary;
+  personal_form?: PersonalFormFeature;
   kind?: "agent" | "result" | "clarify" | "personal-form" | "preview" | "error" | "text";
 }
 

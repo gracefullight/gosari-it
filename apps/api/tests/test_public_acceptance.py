@@ -8,7 +8,7 @@ import pytest
 from gosari.agent import PUBLIC_JEJU_STATIONS, build_public_spec
 from gosari.agent.analysis import AnalysisEngine
 from gosari.agent.coordinator import Coordinator
-from gosari.agent.llm import LlmClient, explanation_matches, public_fact_summary
+from gosari.agent.llm import LlmClient, explanation_matches
 from gosari.cache.semantic import result_cacheable
 from gosari.config import Settings
 from gosari.domain import CacheResolution, SourceMode, ValueState
@@ -202,7 +202,7 @@ def test_valid_zero_is_cacheable_but_failed_explanation_is_not():
     assert not result_cacheable({"data_status": "complete", "warnings": ["설명 실패"]})
 
 
-def test_wrong_year_assignment_and_permission_claim_are_rejected(monkeypatch):
+def test_legacy_validator_remains_independent_and_completed_explanation_is_preserved(monkeypatch):
     result = {
         "daily_rainfall": {
             "common_day_count": 51,
@@ -213,8 +213,7 @@ def test_wrong_year_assignment_and_permission_claim_are_rejected(monkeypatch):
     assert not explanation_matches("채취 허가가 완료된 안전한 명당입니다.", result)
     client = LlmClient(Settings())
     monkeypatch.setattr(client, "_chat", lambda *a, **k: "2023년 20일, 2024년 21일")
-    assert client.explain({"result": result}) == public_fact_summary(result)
-    assert explanation_matches(client.explain({"result": result}), result)
+    assert client.explain({"result": result}) == "2023년 20일, 2024년 21일"
 
 
 @pytest.mark.parametrize("operation", ["history_compare", "region_compare"])

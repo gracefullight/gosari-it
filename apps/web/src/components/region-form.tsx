@@ -82,7 +82,7 @@ export function RegionForm({ onPreview, hideStationCompare = false }: RegionForm
   }
 
   function runRegionCompare() {
-    confirmSpec(
+    void confirmSpec(
       {
         operation: "region_compare",
         source_ids: ["jeju_579", "kma_asos"],

@@ -52,18 +52,25 @@ export function InlinePriceConditionForm({
     const spec: Record<string, unknown> = {
       ...seed,
       operation: selected.operation,
-      source_ids: [selected.source],
+      source_ids:
+        seed.operation === selected.operation && Array.isArray(seed.source_ids)
+          ? seed.source_ids
+          : [selected.source],
       price_channel: selected.value,
     };
     spec.fresh_or_dried = form || undefined;
     spec.origin_filter = origin || undefined;
+    spec.package_weight_unit = weight || undefined;
+    if (weight !== String(seed.package_weight_unit ?? "")) {
+      spec.product_option = undefined;
+      spec.product_id = undefined;
+    }
     if (channel === "wholesale") {
       Object.assign(spec, {
         settlement_date: start,
         settlement_date_end: end,
         market_ids: markets,
       });
-      spec.package_weight_unit = weight || undefined;
     } else {
       for (const field of [
         "settlement_date",
@@ -71,7 +78,6 @@ export function InlinePriceConditionForm({
         "market_ids",
         "grade",
         "package_code",
-        "package_weight_unit",
       ])
         delete spec[field];
     }
@@ -122,6 +128,19 @@ export function InlinePriceConditionForm({
               <option value="건고사리">건고사리</option>
             </select>
           </div>
+          {channel === "retail" ? (
+            <div className="grid gap-1.5">
+              <Label className="text-base" htmlFor={fieldId("retail-weight")}>
+                포장 무게
+              </Label>
+              <Input
+                id={fieldId("retail-weight")}
+                value={weight}
+                placeholder="예: 200 g"
+                onChange={(event) => setWeight(event.target.value)}
+              />
+            </div>
+          ) : null}
           {channel === "wholesale" ? (
             <>
               <div className="grid gap-3 min-[480px]:grid-cols-2">

@@ -167,7 +167,7 @@ def test_chat_complete_public_read_does_not_require_redundant_confirmation(monke
         session, {"text": "현재 제주날씨", "conversation_id": "a"}
     )
     assert job is not None and preparation is None
-    assert started[0][0]["operation"] == "current_observation"
+    assert started[0][1]["dialogue_messages"] == [{"role": "user", "content": "현재 제주날씨"}]
 
 
 def test_followup_public_options_and_stage_switch():
@@ -300,11 +300,16 @@ def test_cache_hit_keeps_public_context_for_next_weight_without_model(monkeypatc
     assert job.stage.value == "completed"
     started = []
     monkeypatch.setattr(
-        coordinator, "start_job", lambda session, spec, **kwargs: started.append(spec) or object()
+        coordinator, "start_job", lambda session, spec, **kwargs: started.append(kwargs) or object()
     )
     coordinator.start_chat(session, {"text": "그럼 200g은?"})
-    assert started[0]["package_weight_unit"] == "200 g"
-    assert "tamnao" in started[0]["source_ids"]
+    messages = started[0]["dialogue_messages"]
+    assert messages[-1] == {"role": "user", "content": "그럼 200g은?"}
+    reference = next(
+        json.loads(message["content"]) for message in messages if message["role"] == "tool"
+    )
+    assert reference["conditions"]["package_weight_unit"] == "100 g"
+    assert "tamnao" in reference["conditions"]["source_ids"]
     assert coordinator._public_contexts.get((Session(Settings()).session_id, "default")) is None
 
 
@@ -532,3 +537,97 @@ def test_failed_scope_is_attempted_once_and_next_round_allows_response():
     assert len(executed) == 1 and output is None
     assert choices[1] == {"type": "function", "function": {"name": "respond"}}
     assert answer == "가격 자료를 불러오지 못했어요."
+
+
+@pytest.mark.parametrize("respond_tool", [True, False])
+def test_completed_legacy_model_body_is_preserved_without_validator_replacement(
+    monkeypatch, respond_tool
+):
+    text = "성산 날씨를 비교했어요. 기온은 15.0℃예요."
+    monkeypatch.setattr(
+        "gosari.agent.runtime.supported_answer",
+        lambda *args: pytest.fail("completed output must retain model body"),
+    )
+
+    class Model:
+        def stream_turn(self, *args, **kwargs):
+            return (
+                call("respond", {"text": text})
+                if respond_tool
+                else {
+                    "role": "assistant",
+                    "content": text,
+                }
+            )
+
+    events = []
+    _, answer = run_agent(
+        Model(),
+        {},
+        lambda spec: pytest.fail("no query requested"),
+        lambda name, data: events.append((name, data)),
+        lambda: None,
+    )
+    assert answer == text
+    assert next(data for name, data in events if name == "assistant_completed") == {
+        "text": text,
+        "replacement": False,
+    }
+
+
+def test_system_prompts_have_service_domain_decline_and_no_standing_warning_instructions():
+    from gosari.agent.dialogue import SYSTEM as dialogue_system
+    from gosari.agent.llm import EXPLAIN_SYSTEM_PROMPT, STRUCTURE_SYSTEM_PROMPT
+    from gosari.agent.runtime import SYSTEM as runtime_system
+
+    for prompt in (dialogue_system, runtime_system, EXPLAIN_SYSTEM_PROMPT, STRUCTURE_SYSTEM_PROMPT):
+        assert "고사리잇과 관련된 질문만 도와드릴 수 있어요." in prompt
+        assert "제주 고사리" in prompt
+        for removed in ("수확량", "허가", "안전도", "면책", "판정하지", "개인정보를 무시"):
+            assert removed not in prompt
+
+
+def test_stream_admission_calibrates_same_job_against_reported_input_without_raising_budget(
+    monkeypatch,
+):
+    from gosari.agent.dialogue import dialogue_tools
+
+    requests = []
+
+    def stream(method, url, **kwargs):
+        requests.append(kwargs["json"])
+        usage = {"prompt_tokens": 5694, "completion_tokens": 13, "total_tokens": 5707}
+        body = "data: " + json.dumps({"choices": [{"delta": {"content": "확인했어요."}}]}) + "\n\n"
+        body += "data: " + json.dumps({"choices": [], "usage": usage}) + "\n\ndata: [DONE]\n\n"
+
+        class Context:
+            def __enter__(self):
+                return httpx.Response(
+                    200, request=httpx.Request(method, url), content=body.encode()
+                )
+
+            def __exit__(self, *args):
+                pass
+
+        return Context()
+
+    monkeypatch.setattr("gosari.agent.llm.httpx.stream", stream)
+    client = LlmClient(
+        Settings(
+            openai_api_key=token_hex(24),
+            external_requests_enabled=True,
+            model_job_token_budget=16000,
+        )
+    )
+    messages = [{"role": "system", "content": "공개 대화 문맥입니다. " * 300}]
+    for _ in range(2):
+        client.stream_turn(messages, dialogue_tools(), lambda text: None, lambda: None)
+    usage = client.usage_snapshot()
+    assert len(requests) == 2 and usage["token_budget"] == 16000
+    assert usage["total_tokens"] == 11414 and usage["remaining_token_budget"] == 4586
+    first, second = usage["records"]
+    assert first["input_tokens_estimate"] == first["input_tokens_heuristic_estimate"]
+    assert second["input_tokens_estimate"] <= second["input_tokens_heuristic_estimate"]
+    assert second["input_tokens_estimate"] >= 5694 * 1.25
+    assert second["input_tokens_heuristic_estimate"] + 1800 > 16000 - 5707
+    assert second["input_tokens_estimate"] + 1800 <= 16000 - 5707

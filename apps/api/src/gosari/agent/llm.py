@@ -5,6 +5,7 @@
 """
 
 import json
+import math
 import re
 import threading
 import time
@@ -15,6 +16,12 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from gosari.agent.prompts import (
+    EXPLAIN_SYSTEM_PROMPT,
+    RUNTIME_CLOCK_TEMPLATE,
+    STRUCTURE_TOOL_SYSTEM_PROMPT,
+)
+from gosari.agent.prompts import STRUCTURE_SYSTEM_PROMPT as STRUCTURE_SYSTEM_PROMPT
 from gosari.config import Settings, get_settings
 from gosari.domain.errors import GosariError
 from gosari.logging import get_logger
@@ -28,11 +35,7 @@ def runtime_system_prompt(prompt: str, now: datetime | None = None) -> str:
     current = (now or datetime.now(ZoneInfo("Asia/Seoul"))).astimezone(ZoneInfo("Asia/Seoul"))
     weekday = ("월", "화", "수", "목", "금", "토", "일")[current.weekday()]
     return (
-        f"{prompt}\n\n"
-        f"현재 기준 날짜: {current:%Y-%m-%d} ({weekday}요일)\n"
-        f"현재 기준 시각: {current:%H:%M:%S} (Asia/Seoul, UTC+09:00)\n"
-        "오늘·내일·모레는 이 한국 시간 기준으로 해석하세요. "
-        "입력에 명시된 날짜와 자료의 관측·발표·조사 시점은 그대로 유지하세요.\n\n"
+        f"{prompt}\n\n" + RUNTIME_CLOCK_TEMPLATE.format(current=current, weekday=weekday) + "\n\n"
     )
 
 
@@ -117,22 +120,6 @@ def public_model_data(value: Any) -> Any:
     return value if value is None or isinstance(value, (bool, int, float)) else None
 
 
-STRUCTURE_SYSTEM_PROMPT = """당신은 고사리잇의 공개 질문 구조화 도구입니다.
-사용자의 공개 분석 질문을 아래 JSON 스키마의 QuerySpec으로 변환하세요.
-허용 operation: history_compare, region_compare, current_observation,
-forecast_compare, market_query, survey_link, retail_lookup, station_search.
-개인 기록·별칭·정확 위치·연락처가 섞이면 {"private": true}만 반환하세요.
-조건이 모호하면 {"clarify": ["질문1", ...]}를 반환하세요.
-숫자 계산이나 자료 조회를 수행하지 마세요. JSON만 출력하세요."""
-
-EXPLAIN_SYSTEM_PROMPT = """당신은 고사리잇의 결과 설명 도구입니다.
-주어진 검증된 결정론 결과(JSON)의 핵심 차이를 한국어 한두 문장으로 설명하세요.
-포함된 숫자·단위·기간·출처·시점을 바꾸지 마세요. 새로운 수치를 만들지 마세요.
-고사리 출현량·수확량·채취 허가·안전도를 예측하거나 판정하지 마세요.
-자료가 불완전하면 누락된 범위만 짧게 적으세요.
-카드에 있는 출처·날짜를 반복하거나 서론·면책·권유·기술 용어를 덧붙이지 마세요."""
-
-
 class LlmClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -202,6 +189,20 @@ class LlmClient:
         # Conservative estimate, not provider tokens: JSON/English ~3 chars per token,
         # Korean and other non-ASCII up to two tokens per character.
         estimated = (ascii_count + 2) // 3 + (len(serialized) - ascii_count) * 2 + 256
+        heuristic_estimate = estimated
+        ratios = [
+            record["input_tokens"] / record["input_tokens_heuristic_estimate"]
+            for record in self._local.records
+            if record.get("usage_status") == "reported"
+            and isinstance(record.get("input_tokens"), int)
+            and record["input_tokens"] > 0
+            and isinstance(record.get("input_tokens_heuristic_estimate"), int)
+            and record["input_tokens_heuristic_estimate"] > 0
+        ]
+        if ratios:
+            ratio = max(ratios) * 1.25
+            if math.isfinite(ratio) and ratio > 0:
+                estimated = min(estimated, math.ceil(estimated * ratio))
         remaining = self._local.remaining
         if (
             remaining is None
@@ -218,6 +219,7 @@ class LlmClient:
             "status": "failed",
             "usage_status": "unknown",
             "input_tokens_estimate": estimated,
+            "input_tokens_heuristic_estimate": heuristic_estimate,
             "input_tokens": None,
             "output_tokens": None,
             "total_tokens": None,
@@ -470,10 +472,7 @@ class LlmClient:
                     "messages": [
                         {
                             "role": "system",
-                            "content": runtime_system_prompt(
-                                "확인된 공개 조건만 사용하여 지정된 분석 도구를 호출하세요. "
-                                "조건을 추가하거나 개인 자료를 요청하지 마세요."
-                            ),
+                            "content": runtime_system_prompt(STRUCTURE_TOOL_SYSTEM_PROMPT),
                         },
                         {
                             "role": "user",
@@ -523,9 +522,7 @@ class LlmClient:
             )
         except GosariError:
             return public_fact_summary(result)
-        if explanation_matches(proposed, result):
-            return proposed
-        return public_fact_summary(result)
+        return proposed
 
 
 def explanation_matches(explanation: str, result: dict[str, Any]) -> bool:

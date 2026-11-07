@@ -1,3 +1,4 @@
+import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Provider } from "jotai";
@@ -22,6 +23,85 @@ afterEach(() => {
 });
 
 describe("Composer", () => {
+  it("grows from one line up to six lines and keeps longer drafts scrollable", () => {
+    render(<ChatComposer onSend={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "메시지 입력" }) as HTMLTextAreaElement;
+    const initial = Number.parseFloat(input.style.height);
+    fireEvent.change(input, { target: { value: "첫째 줄\n둘째 줄\n셋째 줄" } });
+    const three = Number.parseFloat(input.style.height);
+    expect(three).toBeGreaterThan(initial);
+    fireEvent.change(input, { target: { value: Array(6).fill("기록").join("\n") } });
+    const six = Number.parseFloat(input.style.height);
+    fireEvent.change(input, { target: { value: Array(9).fill("기록").join("\n") } });
+    expect(Number.parseFloat(input.style.height)).toBe(six);
+    expect(input.value.split("\n")).toHaveLength(9);
+  });
+
+  it.each(["mac", "windows"] as const)(
+    "sends Mod+Enter once on %s and keeps the shortcut scoped to its textarea",
+    (platform) => {
+      const send = vi.fn();
+      render(
+        <HotkeysProvider defaultOptions={{ platform }}>
+          <ChatComposer onSend={send} />
+          <input aria-label="다른 입력" />
+        </HotkeysProvider>
+      );
+      const input = screen.getByRole("textbox", { name: "메시지 입력" });
+      const modifiers = platform === "mac" ? { metaKey: true } : { ctrlKey: true };
+      fireEvent.change(input, { target: { value: "한 번만 보내기" } });
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "다른 입력" }), {
+        key: "Enter",
+        code: "Enter",
+        ...modifiers,
+      });
+      expect(send).not.toHaveBeenCalled();
+      input.focus();
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", ...modifiers });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", repeat: true, ...modifiers });
+      fireEvent.keyUp(input, { key: "Enter", code: "Enter", ...modifiers });
+      expect(send).toHaveBeenCalledExactlyOnceWith("한 번만 보내기");
+      expect((input as HTMLTextAreaElement).value).toBe("");
+      expect(screen.getByRole("button", { name: "메시지 보내기" }).textContent).toBe("");
+    }
+  );
+
+  it("ignores Mod+Enter while Korean composition is active and while a response runs", () => {
+    const send = vi.fn();
+    const stop = vi.fn();
+    const view = render(
+      <HotkeysProvider defaultOptions={{ platform: "mac" }}>
+        <ChatComposer onSend={send} />
+      </HotkeysProvider>
+    );
+    const input = screen.getByRole("textbox", { name: "메시지 입력" });
+    fireEvent.change(input, { target: { value: "입력 중" } });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", metaKey: true });
+    fireEvent.keyUp(input, { key: "Enter", code: "Enter", metaKey: true });
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", metaKey: true, keyCode: 229 });
+    fireEvent.keyUp(input, { key: "Enter", code: "Enter", metaKey: true });
+    expect(send).not.toHaveBeenCalled();
+    view.rerender(
+      <HotkeysProvider defaultOptions={{ platform: "mac" }}>
+        <ChatComposer onSend={send} responding onStop={stop} />
+      </HotkeysProvider>
+    );
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", metaKey: true });
+    fireEvent.keyUp(input, { key: "Enter", code: "Enter", metaKey: true });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "응답 중지" }));
+    expect(stop).toHaveBeenCalledOnce();
+    view.rerender(
+      <HotkeysProvider defaultOptions={{ platform: "mac" }}>
+        <ChatComposer onSend={send} responding stopping onStop={stop} />
+      </HotkeysProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "응답 중지" }));
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   it("does not send whitespace-only messages", () => {
     const onSend = vi.fn();
     render(<ChatComposer onSend={onSend} />);
@@ -93,7 +173,7 @@ describe("LNB Page Navigation", () => {
     expect(screen.queryByRole("heading", { name: "내 수첩" })).toBeNull();
 
     // Click AI 대화 (홈) -> returns to AI 대화 view with 0 stacked cards
-    fireEvent.click(screen.getByRole("button", { name: "AI 대화 (홈)" }));
+    fireEvent.click(screen.getByRole("button", { name: "채팅" }));
     expect(screen.getByRole("heading", { name: "고사리잇" })).toBeTruthy();
   });
 });

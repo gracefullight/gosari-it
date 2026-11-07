@@ -5,6 +5,7 @@ import {
   CaretRightIcon,
   MagnifyingGlassIcon,
   MapPinIcon,
+  MapTrifoldIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -20,6 +21,12 @@ import {
   type WeatherLocation,
 } from "@/components/jeju-weather-map";
 import { OutingPlanForm } from "@/components/outing-plan-form";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { geocodeAddress } from "@/lib/address-geocoding";
@@ -75,6 +82,8 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
   const navigate = useSetAtom(navigateToPathAtom);
   const [date, setDate] = useState(koreaToday);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapMounted, setMapMounted] = useState(false);
   const [showWeather, setShowWeather] = useState(mode === "outing");
   const [panel, setPanel] = useState<{ region?: PrivateRegion; point: RegionPoint } | null>(null);
   const revision = useAtomValue(revisionCounterAtom);
@@ -168,6 +177,18 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
       if (!controller.signal.aborted) setSearching(false);
     }
   }
+
+  const map = (
+    <JejuWeatherMap
+      locations={showWeather ? locations : []}
+      onSelect={selectLocation}
+      focus={focus}
+      regionPins={savedPins}
+      onRegionSelect={openRegion}
+      onMapSelect={mode === "regions" ? selectMapPoint : undefined}
+      selectedPoint={panel?.region ? null : panel?.point}
+    />
+  );
 
   return (
     <section className="flex flex-col gap-4">
@@ -293,15 +314,30 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
           {searchError}
         </p>
       ) : null}
-      <JejuWeatherMap
-        locations={showWeather ? locations : []}
-        onSelect={selectLocation}
-        focus={focus}
-        regionPins={savedPins}
-        onRegionSelect={openRegion}
-        onMapSelect={mode === "regions" ? selectMapPoint : undefined}
-        selectedPoint={panel?.region ? null : panel?.point}
-      />
+      {mode === "outing" ? (
+        <Accordion
+          value={mapExpanded ? ["weather-map"] : []}
+          onValueChange={(value) => {
+            const expanded = value.includes("weather-map");
+            setMapExpanded(expanded);
+            if (expanded) setMapMounted(true);
+          }}
+        >
+          <AccordionItem value="weather-map" className="rounded-2xl border border-border bg-card">
+            <AccordionTrigger className="min-h-11 items-center gap-3 rounded-2xl px-4 py-3 text-base font-semibold">
+              <span className="flex items-center gap-2">
+                <MapTrifoldIcon aria-hidden="true" className="size-5 text-primary" />
+                지도 보기
+              </span>
+            </AccordionTrigger>
+            <AccordionContent keepMounted className="p-2 pt-0 text-base">
+              {mapMounted ? map : null}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : (
+        map
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-base text-muted-foreground">
         <span>
           {weather.data?.kind === "historical" ? "과거 날씨" : "낮 12시 예보"}

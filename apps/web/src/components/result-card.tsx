@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ComparisonTable, type RainResult, type TempResult } from "@/components/comparison-table";
+import { OutingCandidateCarousel } from "@/components/outing-candidate-carousel";
 import { type PriceCardData, PriceCardList } from "@/components/price-card-list";
 import { StationMap } from "@/components/station-map";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -127,8 +128,8 @@ export function OutingComparisonView({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        {[...candidates]
+      <OutingCandidateCarousel
+        items={[...candidates]
           .sort((a, b) => {
             const left = rankedIds?.indexOf(a.candidate_id) ?? -1;
             const right = rankedIds?.indexOf(b.candidate_id) ?? -1;
@@ -137,118 +138,121 @@ export function OutingComparisonView({
           .map((cand) => {
             const fc = cand.forecast ?? cand.forecast_status;
             const reasons = cand.reasons ?? cand.comparison_reasons ?? [];
-            return (
-              <div
-                key={cand.candidate_id}
-                className="flex flex-col gap-2.5 rounded-xl bg-muted/60 p-4"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-base font-bold text-accent-foreground">
-                    {cand.rank ? <span className="mr-2 text-primary">{cand.rank}순위</span> : null}
-                    {cand.label ?? cand.station_name}
-                  </span>
-                  <span className="rounded-md bg-accent px-2.5 py-1 text-base font-semibold tabular-nums text-accent-foreground">
-                    {formatDisplayDate(cand.date ?? cand.target_date)} ·{" "}
-                    {cand.time_slot ?? cand.target_time_window}
-                  </span>
+            return {
+              id: cand.candidate_id,
+              rank: cand.rank,
+              content: (
+                <div className="flex flex-col gap-2.5 rounded-xl bg-muted/60 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-base font-bold text-accent-foreground">
+                      {cand.rank ? (
+                        <span className="mr-2 text-primary">{cand.rank}순위</span>
+                      ) : null}
+                      {cand.label ?? cand.station_name}
+                    </span>
+                    <span className="rounded-md bg-accent px-2.5 py-1 text-base font-semibold tabular-nums text-accent-foreground">
+                      {formatDisplayDate(cand.date ?? cand.target_date)} ·{" "}
+                      {cand.time_slot ?? cand.target_time_window}
+                    </span>
+                  </div>
+                  {cand.weather ? (
+                    <div className="grid gap-3 py-2">
+                      <p className="text-base text-muted-foreground">
+                        {cand.weather.kind === "historical" ? "과거 날씨" : "예보"} ·{" "}
+                        {(
+                          {
+                            clear: "맑음",
+                            cloudy: "흐림",
+                            partly_cloudy: "구름 조금",
+                            rain: "비",
+                            snow: "눈",
+                            unknown: "자료 없음",
+                          } as Record<string, string>
+                        )[cand.weather.condition] ?? "자료 없음"}
+                      </p>
+                      <dl className="grid grid-cols-3 gap-2 text-base">
+                        <div>
+                          <dt className="text-muted-foreground">기온</dt>
+                          <dd className="mt-1 text-lg font-semibold tabular-nums">
+                            {cand.weather.temperature_c == null
+                              ? "—"
+                              : `${cand.weather.temperature_c}℃`}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">강수확률</dt>
+                          <dd className="mt-1 text-lg font-semibold tabular-nums">
+                            {cand.weather.precipitation_probability == null
+                              ? "—"
+                              : `${cand.weather.precipitation_probability}%`}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">바람</dt>
+                          <dd className="mt-1 text-lg font-semibold tabular-nums">
+                            {cand.weather.wind_speed_kmh == null
+                              ? "—"
+                              : `${cand.weather.wind_speed_kmh}km/h`}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ) : null}
+                  {cand.current_observation ? (
+                    <div className="rounded-lg bg-card p-3 text-base text-foreground">
+                      <div className="font-semibold">
+                        관측시각:{" "}
+                        {formatDisplayDateTime(cand.current_observation.observation_time_kst)}
+                      </div>
+                      <div className="mt-0.5 tabular-nums">
+                        기온 {cand.current_observation.temperature_c ?? ""}℃ · 일강수{" "}
+                        {cand.current_observation.day_rain_mm ?? ""}mm
+                      </div>
+                      {cand.current_observation.location ? (
+                        <div className="text-muted-foreground">
+                          {cand.current_observation.location}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {fc && !cand.weather ? (
+                    <div className="rounded-lg bg-amber-50/90 p-3 text-base text-amber-900">
+                      <div className="font-semibold">
+                        예보 대상시각: {formatDisplayDateTime(fc.target_at)} (발표시각:{" "}
+                        {fc.published_at ? formatDisplayDateTime(fc.published_at) : "미확인"})
+                      </div>
+                      <div>{fc.note}</div>
+                    </div>
+                  ) : null}
+                  {reasons.length > 0 || cand.weather?.recent_context?.length ? (
+                    <details className="text-base">
+                      <summary className="min-h-11 cursor-pointer py-3 text-primary">
+                        비교 근거
+                      </summary>
+                      <ul className="grid gap-2 text-base text-muted-foreground">
+                        {reasons.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                        {!reasons.some((reason) => reason.includes("최근"))
+                          ? cand.weather?.recent_context?.map((period) => (
+                              <li key={period.days}>
+                                최근 {period.days}일 · 비{" "}
+                                {period.total_rain_mm == null ? "—" : `${period.total_rain_mm}mm`} ·
+                                평균{" "}
+                                {period.average_temperature_c == null
+                                  ? "—"
+                                  : `${period.average_temperature_c}℃`}
+                              </li>
+                            ))
+                          : null}
+                      </ul>
+                    </details>
+                  ) : null}
                 </div>
-                {cand.weather ? (
-                  <div className="grid gap-3 py-2">
-                    <p className="text-base text-muted-foreground">
-                      {cand.weather.kind === "historical" ? "과거 날씨" : "예보"} ·{" "}
-                      {(
-                        {
-                          clear: "맑음",
-                          cloudy: "흐림",
-                          partly_cloudy: "구름 조금",
-                          rain: "비",
-                          snow: "눈",
-                          unknown: "자료 없음",
-                        } as Record<string, string>
-                      )[cand.weather.condition] ?? "자료 없음"}
-                    </p>
-                    <dl className="grid grid-cols-3 gap-2 text-base">
-                      <div>
-                        <dt className="text-muted-foreground">기온</dt>
-                        <dd className="mt-1 text-lg font-semibold tabular-nums">
-                          {cand.weather.temperature_c == null
-                            ? "—"
-                            : `${cand.weather.temperature_c}℃`}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">강수확률</dt>
-                        <dd className="mt-1 text-lg font-semibold tabular-nums">
-                          {cand.weather.precipitation_probability == null
-                            ? "—"
-                            : `${cand.weather.precipitation_probability}%`}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">바람</dt>
-                        <dd className="mt-1 text-lg font-semibold tabular-nums">
-                          {cand.weather.wind_speed_kmh == null
-                            ? "—"
-                            : `${cand.weather.wind_speed_kmh}km/h`}
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-                ) : null}
-                {cand.current_observation ? (
-                  <div className="rounded-lg bg-card p-3 text-base text-foreground">
-                    <div className="font-semibold">
-                      관측시각:{" "}
-                      {formatDisplayDateTime(cand.current_observation.observation_time_kst)}
-                    </div>
-                    <div className="mt-0.5 tabular-nums">
-                      기온 {cand.current_observation.temperature_c ?? ""}℃ · 일강수{" "}
-                      {cand.current_observation.day_rain_mm ?? ""}mm
-                    </div>
-                    {cand.current_observation.location ? (
-                      <div className="text-muted-foreground">
-                        {cand.current_observation.location}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {fc && !cand.weather ? (
-                  <div className="rounded-lg bg-amber-50/90 p-3 text-base text-amber-900">
-                    <div className="font-semibold">
-                      예보 대상시각: {formatDisplayDateTime(fc.target_at)} (발표시각:{" "}
-                      {fc.published_at ? formatDisplayDateTime(fc.published_at) : "미확인"})
-                    </div>
-                    <div>{fc.note}</div>
-                  </div>
-                ) : null}
-                {reasons.length > 0 || cand.weather?.recent_context?.length ? (
-                  <details className="text-base">
-                    <summary className="min-h-11 cursor-pointer py-3 text-primary">
-                      비교 근거
-                    </summary>
-                    <ul className="grid gap-2 text-base text-muted-foreground">
-                      {reasons.map((reason) => (
-                        <li key={reason}>{reason}</li>
-                      ))}
-                      {!reasons.some((reason) => reason.includes("최근"))
-                        ? cand.weather?.recent_context?.map((period) => (
-                            <li key={period.days}>
-                              최근 {period.days}일 · 비{" "}
-                              {period.total_rain_mm == null ? "—" : `${period.total_rain_mm}mm`} ·
-                              평균{" "}
-                              {period.average_temperature_c == null
-                                ? "—"
-                                : `${period.average_temperature_c}℃`}
-                            </li>
-                          ))
-                        : null}
-                    </ul>
-                  </details>
-                ) : null}
-              </div>
-            );
+              ),
+            };
           })}
-      </div>
+      />
       {failed && failed.length > 0 ? (
         <Alert>
           <AlertDescription>

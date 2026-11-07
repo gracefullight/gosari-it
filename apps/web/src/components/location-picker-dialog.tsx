@@ -185,7 +185,7 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
         {search ? <DaumAddressSearch onSelect={(address) => void selectAddress(address)} /> : null}
         <section
           ref={setContainer}
-          className="h-80 w-full overflow-hidden rounded-xl border border-border sm:h-96"
+          className="h-80 w-full overflow-hidden rounded-xl border border-border sm:h-96 [&_.maplibregl-ctrl-group_button]:min-h-11 [&_.maplibregl-ctrl-group_button]:min-w-11 [&_.maplibregl-ctrl-group_button]:cursor-pointer [&_.maplibregl-ctrl-attrib]:text-base! [&_.maplibregl-ctrl-scale]:text-base!"
           aria-label="위치 선택 지도"
         />
         <details className="rounded-lg border border-border px-3 py-2">

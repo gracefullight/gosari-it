@@ -4,16 +4,16 @@
  * 고사리잇 API
  * OpenAPI spec version: 0.1.0
  */
+import type { PersonalSearchRequestKind } from './personalSearchRequestKind';
 
 export interface PersonalSearchRequest {
-  /**
-     * @minLength 1
-     * @maxLength 2000
-     */
-  query: string;
+  /** @maxLength 2000 */
+  query?: string;
   /**
      * @minimum 1
      * @maximum 100
      */
   limit?: number;
+  /** @nullable */
+  kind?: PersonalSearchRequestKind;
 }

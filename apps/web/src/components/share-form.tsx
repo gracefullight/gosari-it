@@ -316,7 +316,7 @@ export function ShareForm({ onPreview }: ShareFormProps) {
               aria-label="지인 검색"
             />
             <select
-              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-base"
+              className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-base"
               value={relationship}
               onChange={(event) => setRelationship(event.target.value)}
               aria-label="관계 필터"
@@ -470,7 +470,7 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                         onChange={(event) =>
                           setStatus(event.target.value as "planned" | "delivered")
                         }
-                        className="h-10 rounded-lg border border-input bg-background px-3 text-base"
+                        className="min-h-11 rounded-lg border border-input bg-background px-3 text-base"
                       >
                         <option value="delivered">전달 완료</option>
                         <option value="planned">전달 예정</option>
@@ -679,7 +679,7 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                   onChange={(event) =>
                     setContactRelationship(event.target.value as PersonalContact["relationship"])
                   }
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-base"
+                  className="min-h-11 rounded-lg border border-input bg-background px-3 text-base"
                 >
                   {RELATIONSHIPS.map((relation) => (
                     <option key={relation} value={relation}>

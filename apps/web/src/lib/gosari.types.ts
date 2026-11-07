@@ -27,6 +27,8 @@ export interface ResultEnvelope {
   errors: { code: string; message: string }[];
 }
 
+export type AgentUISelectionSource = "model" | "model_with_fallback" | "fallback" | "cache";
+
 export interface JobResult {
   job_id: string;
   request_id: string;
@@ -36,6 +38,32 @@ export interface JobResult {
   error: string | null;
   events: unknown[];
   model_usage?: Record<string, unknown>;
+  ui_spec?: AgentUISpec | null;
+  ui_results?: Record<string, ResultEnvelope>;
+  ui_selection_source?: AgentUISelectionSource;
+  personal_search?: PersonalSearchSummary | null;
+  personal_form?: PersonalFormFeature | null;
+}
+
+export type PersonalFormFeature = "notebook" | "region_compare" | "share";
+
+export type PersonalSearchKind = "region" | "notebook" | "share" | "contact" | "all";
+export interface PersonalSearchSummary {
+  query: string;
+  kind: PersonalSearchKind;
+  count: number;
+}
+
+export interface AgentUISpec {
+  root: string;
+  elements: Record<
+    string,
+    {
+      type: string;
+      props: Record<string, unknown>;
+      children?: string[];
+    }
+  >;
 }
 
 export type AgentEventType =
@@ -45,6 +73,9 @@ export type AgentEventType =
   | "tool_started"
   | "tool_completed"
   | "tool_failed"
+  | "ui_spec"
+  | "personal_search"
+  | "personal_form"
   | "error"
   | "done";
 
@@ -67,6 +98,18 @@ export interface AgentStreamEvent {
   result?: ResultEnvelope | null;
   error?: string | null;
   model_usage?: Record<string, unknown>;
+  spec?: AgentUISpec;
+  results?: Record<string, ResultEnvelope>;
+  selection_source?: AgentUISelectionSource;
+  ui_spec?: AgentUISpec | null;
+  ui_results?: Record<string, ResultEnvelope>;
+  ui_selection_source?: AgentUISelectionSource;
+  personal_search?: PersonalSearchSummary | null;
+  personal_form?: PersonalFormFeature | null;
+  feature?: PersonalFormFeature;
+  query?: string;
+  kind?: PersonalSearchKind;
+  count?: number;
 }
 
 export interface AgentToolCall {
@@ -92,6 +135,17 @@ export interface AgentChatState {
 export type AgentChatResponse =
   | { kind: "confirmation"; preparation: PrepareResponse }
   | ({ kind: "job" } & JobResult);
+
+export interface AgentChatHistoryEntry {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AgentChatRequest {
+  text: string;
+  conversation_id?: string;
+  history?: AgentChatHistoryEntry[];
+}
 
 export interface Preview {
   preview_id: string;

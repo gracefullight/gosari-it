@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gosari.domain import CacheResolution, DataStatus, LinkStatus, SourceMode
 
@@ -42,6 +42,34 @@ class ProgressEvent(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class UiElement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal[
+        "ResultLayout",
+        "PriceResults",
+        "WeatherMap",
+        "WeatherComparison",
+        "OutingResults",
+        "StationResults",
+        "FollowupActions",
+    ]
+    props: dict[str, Any] = Field(default_factory=dict)
+    children: list[str] = Field(default_factory=list)
+
+
+class UiSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    root: str
+    elements: dict[str, UiElement]
+
+
+class PersonalSearchSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str
+    kind: Literal["notebook", "region", "contact", "share", "all"]
+    count: int
+
+
 class JobResponse(BaseModel):
     """SRS §8.2 작업 상태 응답 — Job의 공개 직렬화 형태."""
 
@@ -54,6 +82,10 @@ class JobResponse(BaseModel):
     events: list[ProgressEvent] = Field(default_factory=list)
     model_usage: dict[str, Any] = Field(default_factory=dict)
     assistant_text: str = ""
+    ui_spec: UiSpec | None = None
+    ui_results: dict[str, ResultEnvelope] = Field(default_factory=dict)
+    personal_search: PersonalSearchSelection | None = None
+    personal_form: Literal["notebook", "region_compare", "share"] | None = None
 
 
 class ChatJobResponse(JobResponse):

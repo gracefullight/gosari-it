@@ -55,9 +55,9 @@ it("keeps an outing confirmation as an outing instead of forcing historical stat
   render(
     <AnalysisConditionForm prepare={{ classification: "public", needs_confirmation: true, spec }} />
   );
-  fireEvent.click(screen.getByRole("button", { name: "이 조건으로 조회" }));
-  expect(confirmSpec).toHaveBeenCalledWith(spec, "이 조건으로 조회");
-  expect(screen.queryByLabelText("지역")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "이 조건으로 날씨 조회" }));
+  expect(confirmSpec).toHaveBeenCalledWith(expect.objectContaining(spec), expect.any(String), null);
+  expect((screen.getByRole("combobox", { name: "지역" }) as HTMLSelectElement).value).toBe("aewol");
 });
 
 it("does not invent a station or years for unresolved historical questions", () => {
@@ -168,4 +168,34 @@ it("uses inline weather questions for an unresolved generic request without menu
   expect(screen.queryByRole("button", { name: "나들이 조건 선택" })).toBeNull();
   expect(screen.queryByRole("button", { name: "가격 조사" })).toBeNull();
   expect(openFeature).not.toHaveBeenCalled();
+});
+
+it("keeps a provider filter when editing a package and clears the superseded SKU constraints", () => {
+  render(
+    <AnalysisConditionForm
+      prepare={{
+        classification: "public",
+        feature: "price",
+        needs_confirmation: true,
+        spec: {
+          operation: "retail_lookup",
+          source_ids: ["retail_sample", "tamnao"],
+          price_channel: "retail",
+          package_weight_unit: "100 g",
+          product_option: "50g X 2",
+          product_id: "old-sku",
+        },
+      }}
+    />
+  );
+  fireEvent.change(screen.getByLabelText("포장 무게"), { target: { value: "200 g" } });
+  fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+  const submitted = confirmSpec.mock.calls[0][0];
+  expect(submitted).toMatchObject({
+    operation: "retail_lookup",
+    source_ids: ["retail_sample", "tamnao"],
+    package_weight_unit: "200 g",
+  });
+  expect(submitted.product_option).toBeUndefined();
+  expect(submitted.product_id).toBeUndefined();
 });

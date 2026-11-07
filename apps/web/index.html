@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="h-full min-h-0 overflow-hidden font-[family-name:var(--gosari-font-stack)] antialiased break-keep [overflow-wrap:break-word]">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,8 +10,8 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>고사리잇</title>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="m-0 h-full min-h-0 overflow-hidden bg-background text-base leading-normal text-foreground [&_button:enabled]:cursor-pointer">
+    <div id="root" class="h-full min-h-0 overflow-hidden [&_[data-name=nextstep-wrapper]]:h-full [&_[data-name=nextstep-wrapper]]:min-h-0 [&_[data-name=nextstep-site]]:h-full [&_[data-name=nextstep-site]]:min-h-0"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

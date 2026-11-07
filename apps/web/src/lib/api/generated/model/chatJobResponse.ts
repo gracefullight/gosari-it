@@ -5,8 +5,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ChatJobResponseModelUsage } from './chatJobResponseModelUsage';
+import type { ChatJobResponsePersonalForm } from './chatJobResponsePersonalForm';
+import type { ChatJobResponseUiResults } from './chatJobResponseUiResults';
+import type { PersonalSearchSelection } from './personalSearchSelection';
 import type { ProgressEvent } from './progressEvent';
 import type { ResultEnvelope } from './resultEnvelope';
+import type { UiSpec } from './uiSpec';
 
 export interface ChatJobResponse {
   job_id: string;
@@ -18,5 +22,10 @@ export interface ChatJobResponse {
   events?: ProgressEvent[];
   model_usage?: ChatJobResponseModelUsage;
   assistant_text?: string;
+  ui_spec?: UiSpec | null;
+  ui_results?: ChatJobResponseUiResults;
+  personal_search?: PersonalSearchSelection | null;
+  /** @nullable */
+  personal_form?: ChatJobResponsePersonalForm;
   kind?: 'job';
 }

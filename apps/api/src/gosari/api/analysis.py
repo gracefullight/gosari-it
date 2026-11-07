@@ -30,6 +30,10 @@ def _job_response(job: Job) -> JobResponse:
         events=job.events,
         model_usage=job.model_usage,
         assistant_text=job.assistant_text,
+        ui_spec=job.ui_spec,
+        ui_results=job.ui_results,
+        personal_search=job.personal_search,
+        personal_form=job.personal_form,
     )
 
 

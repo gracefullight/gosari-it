@@ -1,7 +1,7 @@
 amends "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl"
 
-/// Git hooks. Pre-commit lints only the apps touched by staged files and does
-/// not rewrite them. Pre-push runs the app suites in order. A failed suite
+/// Git hooks. Pre-commit checks only staged paths without rewriting them.
+/// Pre-push checks changed files and related tests in order. A failed check
 /// blocks the push. Passes are cached by content in scripts/pre-push.sh.
 
 hooks {
@@ -9,12 +9,12 @@ hooks {
     fix = false
     steps {
       ["api"] {
-        glob = "apps/api/**"
-        check = "mise //apps/api:lint"
+        glob = "apps/api/**/*.py"
+        check = ".venv/bin/ruff check --no-fix {{files}} && .venv/bin/ruff format --check {{files}}"
       }
       ["web"] {
-        glob = "apps/web/**"
-        check = "mise //apps/web:lint"
+        glob = List("apps/web/**/*.{ts,tsx,js,jsx,json,jsonc,css}", "biome.json", "package.json")
+        check = "./apps/web/node_modules/.bin/biome check --no-errors-on-unmatched --error-on-warnings {{files}}"
       }
       ["hadolint"] {
         glob = List("**/Dockerfile", "**/Dockerfile.*")

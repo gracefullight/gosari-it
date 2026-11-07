@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Provider } from "jotai";
+import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalConfirmDialog } from "@/components/approval-confirm-dialog";
 import { ChatShell } from "@/components/chat-shell";
 import { MainSideNavigation } from "@/components/main-side-navigation";
 import { ResultCard } from "@/components/result-card";
 import { api } from "@/lib/gosari.api";
-import type { AgentChatResponse, Preview, ResultEnvelope } from "@/lib/gosari.types";
+import type { AgentChatResponse, AgentUISpec, Preview, ResultEnvelope } from "@/lib/gosari.types";
+import { messagesAtom } from "@/stores/chat.atoms";
 
 const EVIDENCE_HEADING = /근거 및 출처/;
 const SURVEY_DATE = /2026-11-04/;
@@ -15,6 +16,9 @@ const EXTERNAL_LINK = /외부 링크/;
 const OLD_PRICE_PROSE = /함께 안내|인증을 뜻하지/;
 const INTERNAL_FIELDS = /internal-record|internal-created|unexpected_field|raw-json|revision/;
 const NOTEBOOK_HEADING = /내 기록/;
+const NEW_CHAT_BUTTON = /^새 채팅/;
+
+vi.mock("@/lib/google-analytics", () => ({ trackChatUsage: vi.fn() }));
 
 vi.mock("@/components/weather-map-page", () => ({
   WeatherMapPage: ({ mode }: { mode: string }) => (
@@ -162,7 +166,7 @@ describe("Result display", () => {
   });
 });
 
-function renderWorkspace() {
+function renderWorkspace(store?: ReturnType<typeof createStore>) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(
     new Response(
       JSON.stringify({
@@ -178,7 +182,7 @@ function renderWorkspace() {
   );
   return render(
     <QueryClientProvider client={queryClient}>
-      <Provider>
+      <Provider store={store}>
         <MainSideNavigation open onToggle={vi.fn()} onEndSession={vi.fn()} />
         <ChatShell />
       </Provider>
@@ -187,6 +191,388 @@ function renderWorkspace() {
 }
 
 describe("Workspace routes", () => {
+  it("loads matching private regions only after opening streamed search details and closes on navigation", async () => {
+    const job = {
+      kind: "job" as const,
+      job_id: "private-region-job",
+      request_id: "request",
+      stage: "running",
+      created_at: "2026-11-07",
+      result: null,
+      error: null,
+      events: [],
+    };
+    vi.spyOn(api, "chat").mockResolvedValue(job);
+    const search = vi.spyOn(api, "personalSearch").mockResolvedValue({
+      query: "",
+      mode: "keyword",
+      answer: "관심 지역 1곳",
+      items: [
+        {
+          kind: "region",
+          id: "private-region-id",
+          title: "나의 고사리 스팟",
+          snippet: "합성 검색 결과",
+          date: null,
+        },
+      ],
+    });
+    renderWorkspace();
+    const frame = (type: string, id: string, extra: Record<string, unknown>) =>
+      `event: ${type}\ndata: ${JSON.stringify({ event_id: id, job_id: job.job_id, ...extra })}\n\n`;
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(
+        frame("personal_search", "p1", { query: "", kind: "region", count: 1 }) +
+          frame("assistant_completed", "p2", { text: "저장된 관심 지역 1곳을 찾았습니다." }) +
+          frame("done", "p3", { stage: "completed", result: envelope })
+      )
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "내가 어느 지역 추가해놨지 고사리 스팟" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    await screen.findByText("저장된 관심 지역 1곳을 찾았습니다.");
+    expect(search).not.toHaveBeenCalled();
+    expect(screen.queryByText("나의 고사리 스팟")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "나의 고사리 스팟" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(search).toHaveBeenCalledExactlyOnceWith("", "region");
+    expect(window.location.pathname + window.location.search).toBe(
+      "/regions?region=private-region-id"
+    );
+  });
+
+  it("opens the existing personal write form from terminal job metadata without submitting it", async () => {
+    const job = {
+      kind: "job" as const,
+      job_id: "form-job",
+      request_id: "request",
+      stage: "running",
+      created_at: "2026-11-07",
+      result: null,
+      error: null,
+      events: [],
+    };
+    vi.spyOn(api, "chat").mockResolvedValue(job);
+    vi.spyOn(api, "streamJob").mockResolvedValue({
+      ...job,
+      stage: "completed",
+      personal_form: "notebook",
+    });
+    const prepare = vi.spyOn(api, "notebookPrepare");
+    renderWorkspace();
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "내 수첩 작성" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    expect(await screen.findByRole("heading", { name: "새 기록" })).toBeTruthy();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/");
+  });
+  it("returns to the latest message after a new user send and respects a later manual scroll up", async () => {
+    const store = createStore();
+    store.set(messagesAtom, [{ id: "old-user", role: "user", text: "지난 질문" }]);
+    renderWorkspace(store);
+    const view = screen.getByRole("region", { name: "대화 내용" });
+    const outerScroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+    const scroll = vi.fn(({ top }: ScrollToOptions) => {
+      view.scrollTop = Number(top);
+    });
+    Object.defineProperty(view, "scrollTo", { configurable: true, value: scroll });
+    document.body.scrollTop = 17;
+    document.documentElement.scrollTop = 23;
+    Object.defineProperties(view, {
+      scrollHeight: { configurable: true, value: 1200 },
+      clientHeight: { configurable: true, value: 400 },
+    });
+    view.scrollTop = 0;
+    fireEvent.scroll(view);
+    scroll.mockClear();
+    await act(async () =>
+      store.set(messagesAtom, (previous) => [
+        ...previous,
+        { id: "new-user", role: "user", text: "새 질문" },
+      ])
+    );
+    expect(scroll).toHaveBeenCalledWith({ top: 1200, behavior: "auto" });
+    expect(view.scrollTop).toBe(1200);
+    expect(document.body.scrollTop).toBe(17);
+    expect(document.documentElement.scrollTop).toBe(23);
+    expect(outerScroll).not.toHaveBeenCalled();
+    view.scrollTop = 0;
+    fireEvent.scroll(view);
+    scroll.mockClear();
+    await act(async () =>
+      store.set(messagesAtom, (previous) => [
+        ...previous,
+        { id: "reply", role: "assistant", kind: "text", text: "답변 일부" },
+      ])
+    );
+    expect(scroll).not.toHaveBeenCalled();
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  });
+  it("sends prior visible conversation text once when continuing a chat", async () => {
+    const job = {
+      kind: "job" as const,
+      job_id: "history-job",
+      request_id: "history-request",
+      stage: "running",
+      created_at: "2026-11-07",
+      events: [],
+      result: null,
+      error: null,
+    };
+    const chat = vi.spyOn(api, "chat").mockResolvedValue(job);
+    vi.spyOn(api, "streamJob").mockImplementation(async (_job, options) => {
+      options.onEvent?.({
+        type: "assistant_completed",
+        event_id: "history-answer",
+        job_id: job.job_id,
+        text: "성산 오늘 날씨입니다.",
+      });
+      return { ...job, stage: "completed" };
+    });
+    renderWorkspace();
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "성산 오늘 날씨" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    await screen.findByText("성산 오늘 날씨입니다.");
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLTextAreaElement>("textbox", { name: "메시지 입력" }).disabled
+      ).toBe(false)
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "그럼 내일은?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    await waitFor(() => expect(chat).toHaveBeenCalledTimes(2));
+    expect(chat.mock.calls[0][0].history).toEqual([]);
+    expect(chat.mock.calls[1][0]).toEqual({
+      text: "그럼 내일은?",
+      conversation_id: expect.any(String),
+      history: [
+        { role: "user", content: "성산 오늘 날씨" },
+        { role: "assistant", content: "성산 오늘 날씨입니다." },
+      ],
+    });
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("clears an unsent draft on every new chat, including consecutive resets", async () => {
+    renderWorkspace();
+    const first = screen.getByRole("textbox", { name: "메시지 입력" });
+    fireEvent.change(first, { target: { value: "아직 보내지 않은 초안" } });
+    fireEvent.click(screen.getByRole("button", { name: NEW_CHAT_BUTTON }));
+    const second = (await screen.findByRole("textbox", {
+      name: "메시지 입력",
+    })) as HTMLTextAreaElement;
+    expect(second).not.toBe(first);
+    expect(second.value).toBe("");
+    fireEvent.change(second, { target: { value: "두 번째 임시 질문" } });
+    fireEvent.click(screen.getByRole("button", { name: NEW_CHAT_BUTTON }));
+    const third = (await screen.findByRole("textbox", {
+      name: "메시지 입력",
+    })) as HTMLTextAreaElement;
+    expect(third).not.toBe(second);
+    expect(third.value).toBe("");
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("shows a greeting as plain streamed text without an empty result or generated card", async () => {
+    const empty = {
+      ...envelope,
+      data_status: null,
+      source_mode: null,
+      verified_on: null,
+      result: {},
+    };
+    const job = {
+      kind: "job" as const,
+      job_id: "greeting-job",
+      request_id: "greeting-request",
+      stage: "running",
+      created_at: "2026-11-07",
+      events: [],
+      result: null,
+      error: null,
+    };
+    vi.spyOn(api, "chat").mockResolvedValue(job);
+    renderWorkspace();
+    const spec: AgentUISpec = {
+      root: "root",
+      elements: {
+        root: { type: "ResultLayout", props: {}, children: ["empty"] },
+        empty: { type: "WeatherComparison", props: { resultRef: "empty_result" }, children: [] },
+      },
+    };
+    const event = (type: string, id: string, data: Record<string, unknown>) =>
+      `event: ${type}\ndata: ${JSON.stringify({ event_id: id, job_id: job.job_id, ...data })}\n\n`;
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        event("stage", "h1", { message: "자료를 확인하고 있습니다." }) +
+          event("assistant_completed", "h2", { text: "안녕하세요. 무엇을 도와드릴까요?" }) +
+          event("ui_spec", "h3", {
+            spec,
+            results: { empty_result: empty },
+            selection_source: "fallback",
+          }) +
+          event("done", "h4", { stage: "completed", result: empty })
+      )
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "하이" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    const article = await screen.findByRole("article", { name: "AI 답변" });
+    expect(await within(article).findByText("안녕하세요. 무엇을 도와드릴까요?")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(article.querySelectorAll(".bg-card")).toHaveLength(1);
+    expect(within(article).getByRole("region", { name: "AI 응답 본문" }).textContent).toContain(
+      "안녕하세요. 무엇을 도와드릴까요?"
+    );
+    expect(screen.queryByText("자료를 확인하고 있습니다.")).toBeNull();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("renders a referenced generated price UI and finishes condition and notebook actions inside chat", async () => {
+    const job = {
+      job_id: "generated-price-job",
+      request_id: "generated-request",
+      stage: "running",
+      created_at: "2026-11-07",
+      events: [],
+      result: null,
+      error: null,
+    };
+    vi.spyOn(api, "chat").mockResolvedValue({ kind: "job", ...job });
+    const prices: ResultEnvelope = {
+      ...envelope,
+      requested_scope: {
+        operation: "retail_lookup",
+        source_ids: ["retail_sample", "tamnao"],
+        price_channel: "retail",
+        package_weight_unit: "100 g",
+        contains_personal_hint: false,
+      },
+      result: {
+        channel: "retail",
+        sample_cards: [
+          {
+            channel: "retail",
+            product: "실제 참조 가격",
+            price_value: 17000,
+            net_weight_value: 100,
+            price_as_of: "2026-11-05",
+          },
+        ],
+      },
+      evidence_ids: ["public-price-evidence"],
+    };
+    const spec: AgentUISpec = {
+      root: "root",
+      elements: {
+        root: { type: "ResultLayout", props: {}, children: ["prices", "actions"] },
+        prices: { type: "PriceResults", props: { resultRef: "result_1" }, children: [] },
+        actions: {
+          type: "FollowupActions",
+          props: {
+            actions: [
+              { id: "adjust_conditions", label: "규격 변경", resultRef: "result_1" },
+              { id: "save_to_notebook", label: "수첩 초안", resultRef: "result_1" },
+            ],
+          },
+          children: [],
+        },
+      },
+    };
+    const updated: ResultEnvelope = {
+      ...prices,
+      requested_scope: { ...prices.requested_scope, package_weight_unit: "200 g" },
+      result: {
+        channel: "retail",
+        sample_cards: [
+          {
+            channel: "retail",
+            product: "다른 규격 표본",
+            price_value: 32500,
+            net_weight_value: 200,
+          },
+        ],
+      },
+    };
+    const run = vi
+      .spyOn(api, "runAnalysis")
+      .mockResolvedValue({ ...job, stage: "completed", result: updated });
+    const prepareNotebook = vi.spyOn(api, "notebookPrepare");
+    const consent = vi.spyOn(api, "consent");
+    const commit = vi.spyOn(api, "commit");
+    renderWorkspace();
+    const event = (type: string, id: string, data: Record<string, unknown>) =>
+      `event: ${type}\ndata: ${JSON.stringify({ event_id: id, job_id: job.job_id, ...data })}\n\n`;
+    const frames =
+      event("ui_spec", "gen1", { spec, results: { result_1: prices }, selection_source: "cache" }) +
+      event("done", "gen2", {
+        stage: "completed",
+        result: prices,
+        ui_spec: spec,
+        ui_results: { result_1: prices },
+      });
+    vi.mocked(globalThis.fetch).mockImplementation(
+      async (input) =>
+        new Response(
+          String(input).endsWith("/events")
+            ? frames
+            : JSON.stringify({
+                entries: [],
+                regions: [],
+                contacts: [],
+                evidence_ids: [],
+                result_values: {},
+              })
+        )
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "탐나오 고사리 가격" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
+    expect(await screen.findByText("실제 참조 가격")).toBeTruthy();
+    expect(run).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "조건 변경" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const form = await screen.findByRole("region", { name: "가격 조회 조건" });
+    fireEvent.change(within(form).getByLabelText("포장 무게"), { target: { value: "200 g" } });
+    fireEvent.click(within(form).getByRole("button", { name: "가격 조회" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "상세 보기" })).toHaveLength(2)
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "상세 보기" })[1]);
+    expect(await screen.findByText("다른 규격 표본")).toBeTruthy();
+    expect(run).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        operation: "retail_lookup",
+        source_ids: ["retail_sample", "tamnao"],
+        package_weight_unit: "200 g",
+      }),
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(run.mock.calls[0][0]).not.toHaveProperty("contains_personal_hint");
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기 닫기" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getAllByRole("button", { name: "상세 보기" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "수첩에 기록" }));
+    expect(await screen.findByRole("heading", { name: "새 기록" })).toBeTruthy();
+    expect(prepareNotebook).not.toHaveBeenCalled();
+    expect(consent).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/");
+  });
+
   it("waits for terminal cancellation after stopping a disconnected answer", async () => {
     const job = {
       job_id: "disconnected-cancel-job",
@@ -219,7 +605,7 @@ describe("Workspace routes", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
     await screen.findByRole("button", { name: "이어서 받기" });
-    fireEvent.click(screen.getByRole("button", { name: "답변 중지" }));
+    fireEvent.click(screen.getByRole("button", { name: "응답 중지" }));
     await waitFor(() => expect(getJob).toHaveBeenCalledExactlyOnceWith(job.job_id));
     expect(screen.queryByText("답변을 중지했습니다.")).toBeNull();
     expect(await screen.findByText("취소를 요청했습니다.")).toBeTruthy();
@@ -305,7 +691,7 @@ describe("Workspace routes", () => {
       target: { value: "판매가" },
     });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
-    fireEvent.click(screen.getByRole("button", { name: "새 대화 초기화" }));
+    fireEvent.click(screen.getByRole("button", { name: NEW_CHAT_BUTTON }));
     await act(async () =>
       respond({
         kind: "job",
@@ -364,10 +750,10 @@ describe("Workspace routes", () => {
       target: { value: "도매 가격" },
     });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
-    await screen.findByRole("button", { name: "답변 중지" });
+    await screen.findByRole("button", { name: "응답 중지" });
     emit("assistant_delta", "c1", { text: "지금 받은 문장" });
     expect(await screen.findByText("지금 받은 문장")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "답변 중지" }));
+    fireEvent.click(screen.getByRole("button", { name: "응답 중지" }));
     await screen.findByText("취소를 요청했습니다.");
     expect(screen.queryByText("답변을 중지했습니다.")).toBeNull();
     emit("done", "c2", { stage: "cancelled" });
@@ -414,7 +800,7 @@ describe("Workspace routes", () => {
       target: { value: "고사리 판매가 알려줘" },
     });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
-    await screen.findByRole("button", { name: "답변 중지" });
+    await screen.findByRole("button", { name: "응답 중지" });
     emit("assistant_delta", "s1", { text: "확인한 상품은 " });
     expect(await screen.findByText("확인한 상품은")).toBeTruthy();
     emit("tool_started", "s2", {
@@ -474,7 +860,11 @@ describe("Workspace routes", () => {
     );
     expect(screen.getByText("상품 표본 가격을 확인했습니다.")).toBeTruthy();
     expect(screen.queryByText("확인한 상품은")).toBeNull();
-    expect(screen.getAllByText("스트리밍 고사리")).toHaveLength(1);
+    expect(screen.queryByText("스트리밍 고사리")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기" }));
+    expect(await screen.findByText("스트리밍 고사리")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기 닫기" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText("실패")).toBeTruthy();
     expect(screen.getByText("조사가 조회").closest("details")?.open).toBe(false);
     fireEvent.click(screen.getByText("판매가 조회"));
@@ -562,8 +952,11 @@ describe("Workspace routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
     fireEvent.click(await screen.findByRole("button", { name: "판매가" }));
     fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
     expect(await screen.findByText("채팅 고사리")).toBeTruthy();
     expect(screen.getByText("32,500원 / 200g")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기 닫기" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(window.location.pathname).toBe("/");
     expect(screen.getByRole("textbox", { name: "메시지 입력" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "가격 조사" })).toBeNull();
@@ -615,7 +1008,10 @@ describe("Workspace routes", () => {
       target: { value: "탐나오 건고사리 가격" },
     });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
     expect(await screen.findByText("탐나오 고사리")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기 닫기" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(window.location.pathname).toBe("/");
     expect(screen.queryByRole("button", { name: "가격 조회" })).toBeNull();
     expect(run).toHaveBeenCalledExactlyOnceWith(spec, "탐나오 건고사리 가격", expect.any(Object));

@@ -1,4 +1,5 @@
 import { experimental_streamedQuery, type QueryClient } from "@tanstack/react-query";
+import { readPersonalForm, readPersonalSearchSummary } from "@/lib/agent-chat";
 import { readAgentEvents } from "@/lib/agent-stream";
 import type { AgentStreamEvent, JobResult } from "@/lib/gosari.types";
 import { fetchWithSession } from "@/lib/session-bootstrap";
@@ -29,14 +30,40 @@ export async function streamAnalysisJob(
       lastEventId: options.lastEventId,
     })) {
       options.onEvent?.(event);
+      if (event.type === "personal_search")
+        final = {
+          ...final,
+          personal_search:
+            readPersonalSearchSummary(event.personal_search ?? event) ?? final.personal_search,
+        };
+      if (event.type === "personal_form")
+        final = {
+          ...final,
+          personal_form:
+            readPersonalForm(event.personal_form ?? event.feature) ?? final.personal_form,
+        };
+      if (event.type === "ui_spec" && event.spec) {
+        final = {
+          ...final,
+          ui_spec: event.spec,
+          ui_results: { ...final.ui_results, ...event.results },
+          ui_selection_source: event.selection_source,
+        };
+      }
       if (event.type === "done") {
         finished = true;
         final = {
-          ...initial,
+          ...final,
           stage: event.stage ?? "completed",
           result: event.result ?? null,
           error: event.error ?? null,
           model_usage: event.model_usage,
+          ui_spec: event.ui_spec ?? final.ui_spec,
+          ui_results: { ...final.ui_results, ...event.ui_results },
+          ui_selection_source: event.ui_selection_source ?? final.ui_selection_source,
+          personal_search:
+            readPersonalSearchSummary(event.personal_search) ?? final.personal_search,
+          personal_form: readPersonalForm(event.personal_form) ?? final.personal_form,
         };
       }
       yield event;
@@ -65,7 +92,13 @@ export async function streamAnalysisJob(
       signal: options.signal,
     });
     if (!response.ok) throw new Error("완료된 답변을 확인하지 못했습니다.");
-    final = (await response.json()) as JobResult;
+    const completed = (await response.json()) as JobResult;
+    final = {
+      ...completed,
+      personal_search:
+        readPersonalSearchSummary(completed.personal_search) ?? final.personal_search,
+      personal_form: readPersonalForm(completed.personal_form) ?? final.personal_form,
+    };
   }
   options.onProgress?.(final);
   return final;

@@ -5,6 +5,7 @@ import {
   ChatCircleDotsIcon,
   GearIcon,
   ListIcon,
+  MagnifyingGlassIcon,
   MapTrifoldIcon,
   NotebookIcon,
   PlusIcon,
@@ -12,8 +13,10 @@ import {
   TagIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
-import { useAtomValue } from "jotai";
+import { useFormatForDisplay } from "@tanstack/react-hotkeys";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ComponentType, useState } from "react";
+import { AppCommandMenu } from "@/components/app-command-menu";
 import { OnboardingGuide } from "@/components/onboarding-guide";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +27,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useChat } from "@/hooks/use-chat";
-import { activeFeatureAtom, FEATURES, type Feature } from "@/stores/chat.atoms";
+import { activeFeatureAtom, FEATURES, type Feature, navigateToPathAtom } from "@/stores/chat.atoms";
 
 const FEATURE_ICONS: Record<Feature, ComponentType<{ className?: string }>> = {
   나들이: SunHorizonIcon,
@@ -49,9 +52,12 @@ interface MainSideNavigationProps {
 }
 
 export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNavigationProps) {
+  const formatHotkey = useFormatForDisplay();
   const activeFeature = useAtomValue(activeFeatureAtom);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const navigate = useSetAtom(navigateToPathAtom);
   const { openFeature, resetConversation } = useChat();
 
   function selectFeature(feature: Feature | null) {
@@ -69,6 +75,34 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
     setMobileOpen(false);
   }
 
+  function commandButton(compact = false) {
+    return (
+      <Button
+        variant="outline"
+        size={compact ? "icon-lg" : "lg"}
+        title={`빠른 메뉴 (${formatHotkey("Mod+K")})`}
+        aria-keyshortcuts="Control+K Meta+K"
+        aria-label={`빠른 메뉴 (${formatHotkey("Mod+K")})`}
+        aria-haspopup="dialog"
+        className={compact ? "" : "w-full justify-between text-base"}
+        onClick={() => {
+          setMobileOpen(false);
+          setCommandOpen(true);
+        }}
+      >
+        <MagnifyingGlassIcon aria-hidden="true" />
+        {compact ? null : (
+          <>
+            <span>빠른 메뉴</span>
+            <kbd className="ml-auto font-sans text-base text-muted-foreground">
+              {formatHotkey("Mod+K")}
+            </kbd>
+          </>
+        )}
+      </Button>
+    );
+  }
+
   const navItems = (compact: boolean) => {
     const isChatHome = activeFeature === null;
     return (
@@ -76,21 +110,16 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
         <Button
           variant={isChatHome ? "default" : "ghost"}
           size={compact ? "icon" : "default"}
-          title="AI 대화 (홈)"
-          aria-label="AI 대화 (홈)"
+          title={`채팅 · ${formatHotkey("Mod+/")}`}
+          aria-keyshortcuts="Control+/ Meta+/"
+          aria-label="채팅"
           aria-current={isChatHome ? "page" : undefined}
           className={compact ? "" : "w-full justify-start"}
           onClick={() => selectFeature(null)}
         >
           <ChatCircleDotsIcon className="size-4 shrink-0" />
-          {compact ? null : <span className="truncate">AI 대화 (홈)</span>}
+          {compact ? null : <span className="truncate">채팅</span>}
         </Button>
-
-        {!compact ? (
-          <div className="mt-2 mb-1 px-2 text-base font-bold tracking-wider text-muted-foreground uppercase">
-            둘러보기
-          </div>
-        ) : null}
 
         {FEATURES.map((feature) => {
           const Icon = FEATURE_ICONS[feature];
@@ -119,12 +148,17 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
   };
 
   const footer = (
-    <div className="mt-auto flex h-[var(--app-footer-height)] shrink-0 items-center justify-between gap-2 border-t border-border p-3">
-      <Button variant="ghost" className="justify-start text-muted-foreground" onClick={showHelp}>
+    <div className="mt-auto flex min-h-16 shrink-0 items-center justify-between gap-2 border-t border-border p-2">
+      <Button
+        variant="ghost"
+        size="lg"
+        className="justify-start text-base text-muted-foreground"
+        onClick={showHelp}
+      >
         사용 안내
       </Button>
       <Menu.Root>
-        <Menu.Trigger render={<Button variant="ghost" size="icon" />} aria-label="설정">
+        <Menu.Trigger render={<Button variant="ghost" size="icon-lg" />} aria-label="설정">
           <GearIcon />
         </Menu.Trigger>
         <Menu.Portal>
@@ -148,6 +182,16 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
 
   return (
     <>
+      <AppCommandMenu
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onSelectFeature={selectFeature}
+        onNewConversation={newConversation}
+        onWriteNotebook={() => {
+          selectFeature("내 수첩");
+          navigate("/notebook/new");
+        }}
+      />
       {guideOpen ? <OnboardingGuide onClose={() => setGuideOpen(false)} /> : null}
 
       <header className="flex items-center justify-between border-b border-border bg-background px-4 py-3 md:hidden">
@@ -158,15 +202,18 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
         >
           고사리잇 {activeFeature ? `· ${activeFeature}` : ""}
         </button>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="메뉴 열기"
-          aria-expanded={mobileOpen}
-          onClick={() => setMobileOpen(true)}
-        >
-          <ListIcon />
-        </Button>
+        <div className="flex items-center gap-2">
+          {commandButton(true)}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="메뉴 열기"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(true)}
+          >
+            <ListIcon />
+          </Button>
+        </div>
       </header>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -176,9 +223,22 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
             <SheetDescription>전용 페이지 이동 및 기록 관리</SheetDescription>
           </SheetHeader>
           <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-            <Button variant="outline" className="mb-2 w-full" onClick={newConversation}>
-              <PlusIcon data-icon="inline-start" />새 대화 초기화
+            <Button
+              variant="outline"
+              size="lg"
+              className="mb-2 w-full justify-between"
+              title={`새 채팅 (${formatHotkey("Mod+Alt+N")})`}
+              aria-label="새 채팅"
+              aria-keyshortcuts="Control+Alt+N Meta+Alt+N Control+N Meta+N"
+              onClick={newConversation}
+            >
+              <PlusIcon data-icon="inline-start" />
+              <span>새 채팅</span>
+              <kbd className="ml-auto font-sans text-base text-muted-foreground">
+                {formatHotkey("Mod+Alt+N")}
+              </kbd>
             </Button>
+            {commandButton()}
             {navItems(false)}
           </div>
           {footer}
@@ -212,16 +272,32 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
         </div>
         {open ? (
           <>
-            <div className="p-3 pb-1">
-              <Button variant="outline" className="w-full" onClick={newConversation}>
-                <PlusIcon data-icon="inline-start" />새 대화 초기화
+            <div className="space-y-2 p-3 pb-1">
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full justify-between"
+                title={`새 채팅 (${formatHotkey("Mod+Alt+N")})`}
+                aria-label="새 채팅"
+                aria-keyshortcuts="Control+Alt+N Meta+Alt+N Control+N Meta+N"
+                onClick={newConversation}
+              >
+                <PlusIcon data-icon="inline-start" />
+                <span>새 채팅</span>
+                <kbd className="ml-auto font-sans text-base text-muted-foreground">
+                  {formatHotkey("Mod+Alt+N")}
+                </kbd>
               </Button>
+              {commandButton()}
             </div>
             <div className="flex flex-col gap-1 px-3 py-2">{navItems(false)}</div>
             {footer}
           </>
         ) : (
-          <div className="flex flex-col items-center gap-2 p-2">{navItems(true)}</div>
+          <div className="flex flex-col items-center gap-2 p-2">
+            {commandButton(true)}
+            {navItems(true)}
+          </div>
         )}
       </nav>
     </>

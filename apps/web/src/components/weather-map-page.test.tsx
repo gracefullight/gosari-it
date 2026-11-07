@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { koreaToday, shiftDate, WeatherMapPage } from "@/components/weather-map-page";
 import * as endpoints from "@/lib/api/generated/endpoints";
 import { api } from "@/lib/gosari.api";
 import type { Preview, PrivateRegion } from "@/lib/gosari.types";
 import { appPathAtom } from "@/stores/chat.atoms";
+
+const mapLifecycle = vi.hoisted(() => ({ mounts: vi.fn(), unmounts: vi.fn() }));
 
 vi.mock("@/components/jeju-weather-map", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/components/jeju-weather-map")>();
@@ -18,24 +20,30 @@ vi.mock("@/components/jeju-weather-map", async (importOriginal) => {
       onRegionSelect,
       regionPins,
       locations,
-    }: ComponentProps<typeof original.JejuWeatherMap>) => (
-      <section aria-label="제주 지도">
-        {onMapSelect ? (
-          <button
-            type="button"
-            onClick={() => onMapSelect({ latitude: 33.4567, longitude: 126.6789 })}
-          >
-            새 위치 선택
-          </button>
-        ) : null}
-        {regionPins?.map((pin) => (
-          <button type="button" key={pin.id} onClick={() => onRegionSelect?.(pin.id)}>
-            {pin.name} 지도 핀
-          </button>
-        ))}
-        <span>날씨 핀 {locations.length}개</span>
-      </section>
-    ),
+    }: ComponentProps<typeof original.JejuWeatherMap>) => {
+      useEffect(() => {
+        mapLifecycle.mounts();
+        return () => mapLifecycle.unmounts();
+      }, []);
+      return (
+        <section aria-label="제주 지도">
+          {onMapSelect ? (
+            <button
+              type="button"
+              onClick={() => onMapSelect({ latitude: 33.4567, longitude: 126.6789 })}
+            >
+              새 위치 선택
+            </button>
+          ) : null}
+          {regionPins?.map((pin) => (
+            <button type="button" key={pin.id} onClick={() => onRegionSelect?.(pin.id)}>
+              {pin.name} 지도 핀
+            </button>
+          ))}
+          <span>날씨 핀 {locations.length}개</span>
+        </section>
+      );
+    },
   };
 });
 
@@ -65,6 +73,8 @@ const preview: Preview = {
 };
 
 beforeEach(() => {
+  mapLifecycle.mounts.mockClear();
+  mapLifecycle.unmounts.mockClear();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(api, "regionsList").mockResolvedValue({ regions: [savedRegion] });
   vi.spyOn(api, "regionsPrepare").mockResolvedValue(preview);
@@ -237,4 +247,47 @@ it("opens a dated notebook from the selected public weather without putting an a
   expect(query.get("date")).toBe(koreaToday());
   expect(query.getAll("evidence")).toEqual(["ev-public-weather"]);
   expect(query.has("address")).toBe(false);
+});
+
+it("starts outing map collapsed, mounts visibly once and preserves date/selection across toggles", async () => {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Provider>
+        <WeatherMapPage mode="outing" onPreview={vi.fn()} />
+      </Provider>
+    </QueryClientProvider>
+  );
+  const toggle = screen.getByRole("button", { name: "지도 보기" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByLabelText("제주 지도")).toBeNull();
+  await screen.findByRole("region", { name: "지역별 날씨 목록" });
+  expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledTimes(1);
+  fireEvent.click(toggle);
+  const map = await screen.findByRole("region", { name: "제주 지도" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(mapLifecycle.mounts).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "다음 날짜" }));
+  const nextDate = shiftDate(koreaToday(), 1);
+  await waitFor(() => expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledTimes(2));
+  const list = screen.getByRole("region", { name: "지역별 날씨 목록" });
+  fireEvent.click((await within(list).findAllByRole("button"))[0]);
+  expect(screen.getByRole("button", { name: "수첩에 기록" })).toBeTruthy();
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByLabelText("제주 지도")).toBe(map);
+  expect(screen.getByLabelText("날씨 날짜").textContent).toContain(nextDate);
+  expect(screen.getByRole("button", { name: "수첩에 기록" })).toBeTruthy();
+  expect(mapLifecycle.mounts).toHaveBeenCalledTimes(1);
+  expect(mapLifecycle.unmounts).not.toHaveBeenCalled();
+  expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledTimes(2);
+});
+
+it("keeps the regions map expanded immediately without an outing accordion", async () => {
+  mountRegions();
+  expect(screen.getByRole("region", { name: "제주 지도" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "지도 보기" })).toBeNull();
+  await screen.findByRole("button", { name: "선흘 숲길 지도 핀" });
+  expect(mapLifecycle.mounts).toHaveBeenCalledTimes(1);
 });

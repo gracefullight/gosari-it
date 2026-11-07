@@ -78,6 +78,7 @@ export function DatePickerField({
               mode="single"
               required={required}
               locale={ko}
+              formatters={{ formatMonthDropdown: (date) => `${date.getMonth() + 1}월` }}
               selected={selected}
               defaultMonth={selected ?? new Date()}
               captionLayout="dropdown"

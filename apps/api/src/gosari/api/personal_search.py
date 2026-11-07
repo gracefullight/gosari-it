@@ -8,12 +8,13 @@ from pydantic import BaseModel, Field
 
 from gosari.api.deps import check_origin, current_session
 from gosari.domain.errors import GosariError
-from gosari.personal.search import PersonalSearchResponse, search_personal
+from gosari.personal.search import PersonalSearchKind, PersonalSearchResponse, search_personal
 
 
 class PersonalSearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=2000)
+    query: str = Field(default="", max_length=2000)
     limit: int = Field(default=20, ge=1, le=100)
+    kind: PersonalSearchKind | None = None
 
 
 class PersonalSearchController(Controller):
@@ -25,8 +26,9 @@ class PersonalSearchController(Controller):
     ) -> Response[PersonalSearchResponse]:
         check_origin(request)
         session = current_session(request)
-        if not data.query.strip():
+        if not data.query.strip() and data.kind is None:
             raise GosariError("INVALID_INPUT", {"fields": ["query"]})
         return Response(
-            search_personal(session, data.query, data.limit), headers={"Cache-Control": "no-store"}
+            search_personal(session, data.query, data.limit, data.kind),
+            headers={"Cache-Control": "no-store"},
         )

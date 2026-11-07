@@ -13,25 +13,30 @@ mkdir -p "$CACHE_DIR"
 cached_gate() {
   local name=$1 deps=$2
   shift 2
-  local key marker
+  local key marker dirty
+  git rev-parse --verify "${CHECK_BASE:-origin/main}" >/dev/null
+  # A clean HEAD cache must never hide newly staged/unstaged/untracked inputs.
+  # shellcheck disable=SC2086
+  dirty="$(git status --porcelain -- mise.toml hk.pkl scripts/pre-push.sh scripts/check-changed.py $deps)"
   # shellcheck disable=SC2086
   key=$(
     {
       echo "$name"
-      for p in mise.toml hk.pkl scripts/pre-push.sh $deps; do
+      git rev-parse --verify "${CHECK_BASE:-origin/main}"
+      for p in mise.toml hk.pkl scripts/pre-push.sh scripts/check-changed.py $deps; do
         git rev-parse --verify -q "HEAD:$p" || echo "absent $p"
       done
     } | git hash-object --stdin
   )
   marker="$CACHE_DIR/$key"
-  if [ -f "$marker" ]; then
+  if [ -f "$marker" ] && [ -z "$dirty" ]; then
     echo "[pre-push] $name: unchanged since it last passed, skipping."
     return 0
   fi
   echo "[pre-push] $name: running..."
   "$@" || return 1
   # shellcheck disable=SC2086
-  if [ -n "$(git status --porcelain -- mise.toml hk.pkl scripts/pre-push.sh $deps)" ]; then
+  if [ -n "$(git status --porcelain -- mise.toml hk.pkl scripts/pre-push.sh scripts/check-changed.py $deps)" ]; then
     echo "[pre-push] $name: passed but not cached (uncommitted changes present)."
   else
     : > "$marker"
@@ -44,10 +49,10 @@ run_gate() {
       ./node_modules/.bin/validate-branch
       ;;
     api)
-      cached_gate api "apps/api" mise //apps/api:test
+      cached_gate api "apps/api pyproject.toml uv.lock" python3 scripts/check-changed.py api "${CHECK_BASE:-origin/main}"
       ;;
     web)
-      cached_gate web "apps/web" mise //apps/web:test
+      cached_gate web "apps/web package.json bun.lock biome.json" python3 scripts/check-changed.py web "${CHECK_BASE:-origin/main}"
       ;;
     *)
       echo "pre-push: unknown gate $1" >&2

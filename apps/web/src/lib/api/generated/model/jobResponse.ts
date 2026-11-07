@@ -5,8 +5,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { JobResponseModelUsage } from './jobResponseModelUsage';
+import type { JobResponsePersonalForm } from './jobResponsePersonalForm';
+import type { JobResponseUiResults } from './jobResponseUiResults';
+import type { PersonalSearchSelection } from './personalSearchSelection';
 import type { ProgressEvent } from './progressEvent';
 import type { ResultEnvelope } from './resultEnvelope';
+import type { UiSpec } from './uiSpec';
 
 export interface JobResponse {
   job_id: string;
@@ -18,4 +22,9 @@ export interface JobResponse {
   events?: ProgressEvent[];
   model_usage?: JobResponseModelUsage;
   assistant_text?: string;
+  ui_spec?: UiSpec | null;
+  ui_results?: JobResponseUiResults;
+  personal_search?: PersonalSearchSelection | null;
+  /** @nullable */
+  personal_form?: JobResponsePersonalForm;
 }

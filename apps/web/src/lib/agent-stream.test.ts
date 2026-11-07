@@ -41,6 +41,23 @@ function frame(type: string, id: string, extra: Record<string, unknown> = {}) {
 }
 
 describe("agent event stream", () => {
+  it("keeps streamed private search and form summaries through a terminal job read", async () => {
+    const search = { query: "", kind: "region" as const, count: 2 };
+    vi.mocked(fetchWithSession)
+      .mockResolvedValueOnce(
+        new Response(
+          frame("personal_search", "ps1", search) +
+            frame("personal_form", "pf1", { feature: "notebook" }) +
+            frame("done", "pd1", { stage: "completed" })
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...job, stage: "completed", result })));
+    const progress = vi.fn();
+    const done = await streamAnalysisJob(job, { onProgress: progress });
+    expect(done.personal_search).toEqual(search);
+    expect(done.personal_form).toBe("notebook");
+    expect(progress.mock.calls.at(-1)?.[0].personal_search).toEqual(search);
+  });
   it("cancels a job whose creation response arrives after the caller aborted", async () => {
     let respond!: (response: Response) => void;
     vi.mocked(fetchWithSession)

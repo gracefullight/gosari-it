@@ -20,6 +20,34 @@ const JEJU_BOUNDS: maplibregl.LngLatBoundsLike = [
   [126.98, 33.62],
 ];
 
+const JEJU_FIT_PADDING = { top: 100, bottom: 90, left: 16, right: 16 };
+
+interface JejuMapViewport {
+  getContainer: () => Pick<HTMLElement, "getBoundingClientRect">;
+  resize: () => unknown;
+  cameraForBounds: (
+    bounds: maplibregl.LngLatBoundsLike,
+    options: maplibregl.CameraForBoundsOptions
+  ) => { zoom?: number } | undefined;
+  setMinZoom: (zoom: number) => unknown;
+  fitBounds: (bounds: maplibregl.LngLatBoundsLike, options: maplibregl.FitBoundsOptions) => unknown;
+}
+
+/** Recompute the whole-island zoom floor for the actual visible viewport. */
+export function resizeJejuViewport(map: JejuMapViewport, userMoved: boolean) {
+  const { width, height } = map.getContainer().getBoundingClientRect();
+  if (
+    width <= JEJU_FIT_PADDING.left + JEJU_FIT_PADDING.right ||
+    height <= JEJU_FIT_PADDING.top + JEJU_FIT_PADDING.bottom
+  )
+    return;
+  map.resize();
+  const camera = map.cameraForBounds(JEJU_BOUNDS, { padding: JEJU_FIT_PADDING, maxZoom: 16 });
+  if (camera?.zoom != null && Number.isFinite(camera.zoom))
+    map.setMinZoom(Math.max(0, Math.min(16, camera.zoom)));
+  if (!userMoved) map.fitBounds(JEJU_BOUNDS, { padding: JEJU_FIT_PADDING, duration: 0 });
+}
+
 export interface WeatherLocation {
   id: string;
   name: string;
@@ -77,7 +105,8 @@ function WeatherPin({
     <button
       type="button"
       onClick={() => onSelect(location)}
-      className="weather-map-pin"
+      data-weather-pin
+      className="flex h-[88px] w-[76px] cursor-pointer flex-col items-center justify-center gap-0 rounded-xl border border-border bg-card px-1 py-1.5 text-foreground shadow-[0_3px_12px_rgb(26_31_27_/_10%)] hover:border-primary hover:outline-2 hover:outline-ring hover:outline-offset-2 focus-visible:border-primary focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
       aria-label={`${location.name} ${WEATHER_LABELS[location.condition]} ${location.temperature_c ?? "미확인"}도, 강수확률 ${location.precipitation_probability == null ? "미확인" : `${location.precipitation_probability}%`}`}
     >
       <span className="text-base leading-6 font-semibold text-muted-foreground">
@@ -128,7 +157,7 @@ export function JejuWeatherMap({
     const map = instance.current;
     const select = (event: maplibregl.MapMouseEvent) => {
       const target = event.originalEvent.target;
-      if (target instanceof Element && target.closest(".weather-map-pin, .interest-map-pin"))
+      if (target instanceof Element && target.closest("[data-weather-pin], [data-interest-pin]"))
         return;
       userMoved.current = true;
       onMapSelect({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
@@ -150,7 +179,8 @@ export function JejuWeatherMap({
       root.render(
         <button
           type="button"
-          className="interest-map-pin flex flex-col items-center gap-1"
+          data-interest-pin
+          className="flex cursor-pointer flex-col items-center gap-1"
           aria-label={`${point.name} 관심 지역 보기`}
           onClick={(event) => {
             event.stopPropagation();
@@ -217,8 +247,8 @@ export function JejuWeatherMap({
           ],
         },
         bounds: JEJU_BOUNDS,
-        fitBoundsOptions: { padding: { top: 100, bottom: 90, left: 16, right: 16 } },
-        minZoom: 7,
+        fitBoundsOptions: { padding: JEJU_FIT_PADDING },
+        minZoom: 0,
         maxZoom: 16,
         attributionControl: { compact: true },
       });
@@ -244,14 +274,8 @@ export function JejuWeatherMap({
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.ScaleControl(), "bottom-left");
     setReady(true);
-    const resize = new ResizeObserver(() => {
-      map.resize();
-      if (!userMoved.current)
-        map.fitBounds(JEJU_BOUNDS, {
-          padding: { top: 100, bottom: 90, left: 16, right: 16 },
-          duration: 0,
-        });
-    });
+    resizeJejuViewport(map, userMoved.current);
+    const resize = new ResizeObserver(() => resizeJejuViewport(map, userMoved.current));
     resize.observe(container.current);
     return () => {
       resize.disconnect();
@@ -265,12 +289,12 @@ export function JejuWeatherMap({
     if (!ready || !instance.current) return;
     const map = instance.current;
     const connections = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    connections.classList.add("weather-map-connections");
+    connections.setAttribute("class", "pointer-events-none absolute inset-0 z-[1] h-full w-full");
     connections.setAttribute("aria-hidden", "true");
     map.getContainer().append(connections);
     const pins = locations.map((location) => {
       const element = document.createElement("div");
-      element.classList.add("weather-map-marker");
+      element.className = "z-[2]";
       element.setAttribute("role", "group");
       element.setAttribute("aria-label", location.name);
       element.tabIndex = -1;
@@ -301,11 +325,13 @@ export function JejuWeatherMap({
         }
         marker.setOffset([position.x - anchor.x, position.y - anchor.y]);
         const line = document.createElementNS(connections.namespaceURI, "line");
+        line.setAttribute("class", "stroke-muted-foreground stroke-[1.5] opacity-65");
         line.setAttribute("x1", String(anchor.x));
         line.setAttribute("y1", String(anchor.y));
         line.setAttribute("x2", String(position.x));
         line.setAttribute("y2", String(position.y));
         const dot = document.createElementNS(connections.namespaceURI, "circle");
+        dot.setAttribute("class", "fill-primary");
         dot.setAttribute("cx", String(anchor.x));
         dot.setAttribute("cy", String(anchor.y));
         dot.setAttribute("r", "3");
@@ -342,7 +368,7 @@ export function JejuWeatherMap({
   }, [focus]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-weather-sea">
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-weather-sea [&_.maplibregl-ctrl-group_button]:min-h-11 [&_.maplibregl-ctrl-group_button]:min-w-11 [&_.maplibregl-ctrl-group_button]:cursor-pointer [&_.maplibregl-ctrl-attrib]:text-base! [&_.maplibregl-ctrl-scale]:text-base!">
       <section
         ref={container}
         className="h-[760px] w-full min-[360px]:h-[680px] min-[768px]:h-[600px]"
@@ -377,7 +403,7 @@ export function JejuWeatherMap({
               });
           })
         }
-        className="absolute top-3 right-[4.25rem] flex size-11 items-center justify-center rounded-xl border border-border bg-card text-primary shadow-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute top-3 right-[4.25rem] flex size-11 cursor-pointer items-center justify-center rounded-xl border border-border bg-card text-primary shadow-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
       >
         <NavigationArrowIcon weight="fill" className="size-5" aria-hidden="true" />
       </button>

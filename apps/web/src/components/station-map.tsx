@@ -92,5 +92,12 @@ export function StationMap({ stations }: { stations: MapStation[] }) {
       </div>
     );
   }
-  return <div ref={mapRef} className="map-container" role="img" aria-label="관측소 지도" />;
+  return (
+    <div
+      ref={mapRef}
+      className="h-80 w-full overflow-hidden rounded-lg [&_.maplibregl-ctrl-group_button]:min-h-11 [&_.maplibregl-ctrl-group_button]:min-w-11 [&_.maplibregl-ctrl-group_button]:cursor-pointer [&_.maplibregl-ctrl-attrib]:text-base! [&_.maplibregl-ctrl-scale]:text-base!"
+      role="img"
+      aria-label="관측소 지도"
+    />
+  );
 }

@@ -3,6 +3,7 @@ import { NuqsAdapter } from "nuqs/adapters/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppShell } from "@/app-shell";
+import { AppAnalytics } from "@/components/app-analytics";
 import { OnboardingProvider } from "@/components/onboarding-guide";
 import "@/styles.css";
 
@@ -17,6 +18,7 @@ if (root) {
       <QueryClientProvider client={queryClient}>
         <NuqsAdapter>
           <OnboardingProvider>
+            <AppAnalytics />
             <AppShell />
           </OnboardingProvider>
         </NuqsAdapter>

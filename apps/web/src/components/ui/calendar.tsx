@@ -2,6 +2,7 @@
 "use client";
 
 import { CaretDownIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { ko } from "date-fns/locale";
 import * as React from "react";
 import {
   type ChevronProps,
@@ -45,6 +46,7 @@ function Calendar({
   captionLayout = "label",
   buttonVariant = "ghost",
   formatters,
+  locale = ko,
   components,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
@@ -56,14 +58,15 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:--spacing(11)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
       )}
+      locale={locale}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) => date.toLocaleString("default", { month: "short" }),
+        formatMonthDropdown: (date) => `${date.getMonth() + 1}월`,
         ...formatters,
       }}
       classNames={{
@@ -96,12 +99,15 @@ function Calendar({
           "relative has-focus:border-ring border border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] rounded-md",
           defaultClassNames.dropdown_root
         ),
-        dropdown: cn("absolute bg-popover inset-0 opacity-0", defaultClassNames.dropdown),
+        dropdown: cn(
+          "absolute inset-0 min-h-11 cursor-pointer bg-popover text-base opacity-0",
+          defaultClassNames.dropdown
+        ),
         caption_label: cn(
           "select-none font-medium",
           captionLayout === "label"
             ? "text-sm"
-            : "rounded-md pl-2 pr-1 flex items-center gap-1 text-sm h-8 [&>svg]:text-muted-foreground [&>svg]:size-3.5",
+            : "rounded-md pl-2 pr-1 flex items-center gap-1 text-base h-11 [&>svg]:text-muted-foreground [&>svg]:size-3.5",
           defaultClassNames.caption_label
         ),
         month_grid: "w-full border-collapse",

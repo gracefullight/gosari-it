@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AgentGeneratedUI } from "@/components/agent-ui-renderer";
 import { InlineOutingConditionForm } from "@/components/inline-outing-condition-form";
 import { InlinePriceConditionForm } from "@/components/inline-price-condition-form";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import type { PrepareResponse } from "@/lib/gosari.types";
 
 const YEAR_PATTERN = /^\d{4}$/;
 
-export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse }) {
+export function AnalysisConditionFields({ prepare }: { prepare: PrepareResponse }) {
   const { confirmSpec } = useChat();
   const original = prepare.spec;
   const selection = (
@@ -42,7 +43,7 @@ export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse })
       .split(",")
       .map((y) => Number.parseInt(y.trim(), 10))
       .filter((y) => !Number.isNaN(y));
-    confirmSpec(
+    return confirmSpec(
       {
         ...original,
         operation: "history_compare",
@@ -141,6 +142,55 @@ export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse })
           onConfirm={(spec, label) => confirmSpec(spec, label, null)}
         />
       )}
+    </div>
+  );
+}
+
+export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse }) {
+  const { confirmSpec } = useChat();
+  const operation = prepare.spec?.operation;
+  const hint = prepare.form?.feature_hint;
+  const price =
+    prepare.feature === "price" ||
+    prepare.form?.kind === "price_conditions" ||
+    ["price", "market_query", "retail_lookup", "survey_link"].includes(String(hint)) ||
+    ["market_query", "retail_lookup", "survey_link"].includes(String(operation));
+  const history =
+    operation === "history_compare" ||
+    prepare.feature === "history_compare" ||
+    hint === "history_compare";
+  const component = price
+    ? "PriceConditions"
+    : history || (prepare.spec && operation !== "outing_compare")
+      ? "ConditionForm"
+      : "OutingConditions";
+  const generated = (
+    <AgentGeneratedUI
+      spec={{
+        root: "root",
+        elements: {
+          root: { type: "ResultLayout", props: {}, children: ["conditions"] },
+          conditions: { type: component, props: { preparationRef: "preparation_1" }, children: [] },
+        },
+      }}
+      results={{}}
+      preparations={{ preparation_1: prepare }}
+      onAction={() => {}}
+      onConfirm={(spec, label) => confirmSpec(spec, label, null)}
+      fallback={<AnalysisConditionFields prepare={prepare} />}
+    />
+  );
+  if (component === "ConditionForm") return generated;
+  return (
+    <div className="w-full max-w-xl space-y-3">
+      {prepare.form?.questions ? (
+        <ul className="mb-3 list-inside list-disc text-base text-muted-foreground">
+          {prepare.form.questions.map((question) => (
+            <li key={question}>{question}</li>
+          ))}
+        </ul>
+      ) : null}
+      {generated}
     </div>
   );
 }

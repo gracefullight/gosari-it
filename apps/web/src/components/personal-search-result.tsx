@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/gosari.api";
-import type { PersonalSearchResponse } from "@/lib/gosari.types";
+import type { PersonalSearchKind, PersonalSearchResponse } from "@/lib/gosari.types";
 import { navigateToPathAtom } from "@/stores/chat.atoms";
 
 const LABELS = { notebook: "수첩", region: "관심 지역", contact: "지인", share: "나눔" };
@@ -13,11 +13,19 @@ function itemPath(item: PersonalSearchResponse["items"][number]) {
   if (item.kind === "contact") return `/share?contact=${encodeURIComponent(item.id)}`;
   return "/share";
 }
-export function PersonalSearchResult({ query }: { query: string }) {
+export function PersonalSearchResult({
+  query,
+  kind = "all",
+  onNavigate,
+}: {
+  query: string;
+  kind?: PersonalSearchKind;
+  onNavigate?: () => void;
+}) {
   const navigate = useSetAtom(navigateToPathAtom);
   const result = useQuery({
-    queryKey: ["personal-search", query],
-    queryFn: () => api.personalSearch(query),
+    queryKey: ["personal-search", kind, query],
+    queryFn: () => api.personalSearch(query, kind),
     staleTime: 0,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -51,7 +59,10 @@ export function PersonalSearchResult({ query }: { query: string }) {
             <button
               type="button"
               className="flex min-h-11 w-full items-center justify-between gap-3 text-left font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-              onClick={() => navigate(itemPath(item))}
+              onClick={() => {
+                onNavigate?.();
+                navigate(itemPath(item));
+              }}
             >
               {item.title}
               <ArrowRightIcon className="size-5 shrink-0" aria-hidden="true" />

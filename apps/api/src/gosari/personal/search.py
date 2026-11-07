@@ -291,18 +291,23 @@ class LocalPersonalRanker:
 local_ranker = LocalPersonalRanker()
 
 
-def search_personal(session: Session, query: str, limit: int = 20) -> PersonalSearchResponse:
+PersonalSearchKind = Literal["notebook", "region", "contact", "share", "all"]
+
+
+def search_personal(
+    session: Session, query: str, limit: int = 20, kind: PersonalSearchKind | None = None
+) -> PersonalSearchResponse:
     docs = _documents(session)
     terms = _tokens(query)
-    categories = []
-    for kind, aliases in (
+    categories = [kind] if kind and kind != "all" else []
+    for category, aliases in (
         ("notebook", ("수첩", "채취기록")),
         ("region", ("지역", "스팟", "명당")),
         ("contact", ("지인", "연락처")),
         ("share", ("나눔", "나눠", "나눈", "드린")),
     ):
-        if any(alias in query.replace(" ", "") for alias in aliases):
-            categories.append(kind)
+        if kind is None and any(alias in query.replace(" ", "") for alias in aliases):
+            categories.append(category)
     if categories:
         docs = [(item, text) for item, text in docs if item.kind in categories]
     if not docs:
@@ -316,7 +321,7 @@ def search_personal(session: Session, query: str, limit: int = 20) -> PersonalSe
         )
         for item, text in docs
     ]
-    semantic = local_ranker.similarities(query, [text for _, text in docs])
+    semantic = local_ranker.similarities(query, [text for _, text in docs]) if terms else None
     candidates = [
         i
         for i in range(len(docs))

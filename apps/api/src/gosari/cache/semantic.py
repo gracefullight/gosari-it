@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 
 FINGERPRINT_VERSION = "fingerprint-v2-public-db"
 CALCULATION_VERSION = "calc-v1"
-PROMPT_VERSION = "prompt-v4-agent-claims"
-TOOL_SCHEMA_VERSION = "tools-v2-agent"
+PROMPT_VERSION = "prompt-v9-markdown"
+TOOL_SCHEMA_VERSION = "tools-v6-public-catalog"
 SAFETY_POLICY_VERSION = "safety-v1"
 
 

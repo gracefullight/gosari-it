@@ -313,7 +313,7 @@ export function NotebookForm({
       ) : (
         <>
           {view === "list" ? (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3 rounded-xl bg-muted/60 p-4">
+            <div className="grid grid-cols-1 gap-3 rounded-xl bg-muted/60 p-4 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,1fr)]">
               <div className="grid gap-1">
                 <Label htmlFor="filter-start">시작 날짜</Label>
                 <DatePickerField
@@ -398,22 +398,23 @@ export function NotebookForm({
                   ? "검색 조건에 맞는 기록이 없습니다."
                   : "아직 기록이 없습니다."}
               </p>
-              {start || end || aliasFilter ? (
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => {
-                    setStart("");
-                    setEnd("");
-                    setAliasFilter("");
-                  }}
-                >
-                  검색 조건 지우기
+              <div className="mt-4 flex flex-wrap justify-center gap-3">
+                {start || end || aliasFilter ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStart("");
+                      setEnd("");
+                      setAliasFilter("");
+                    }}
+                  >
+                    검색 조건 지우기
+                  </Button>
+                ) : null}
+                <Button variant="outline" onClick={startNew}>
+                  첫 기록 쓰기
                 </Button>
-              ) : null}
-              <Button variant="outline" className="mt-4" onClick={startNew}>
-                첫 기록 쓰기
-              </Button>
+              </div>
             </div>
           ) : null}
           {view === "list" ? (

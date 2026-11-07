@@ -1,32 +1,33 @@
 """조정자 — 요청 분류·조건 확인·허용 도구 계획·작업 상태 (SRS §4.1, §5.9).
 
 공개 분석: 조건 확인 → 캐시 → 취득 → 품질 → 계산 → 근거 → (선택) LLM 설명 → 대조.
-개인 작업은 로컬 폼과 승인 프로토콜로만 처리하며 LLM 도구 목록에서 제외된다.
+개인 검색은 로컬에서 실행하고 건수만 모델에 전달하며, 변경은 폼과 승인을 거친다.
 """
 
+import hashlib
 import json
 import re
 import threading
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 
 from gosari.agent import build_public_spec, detect_out_of_scope, detect_personal_hint
 from gosari.agent.analysis import AnalysisEngine
 from gosari.agent.llm import LlmClient
 from gosari.agent.public_planner import (
-    continue_public_price,
     is_price_question,
     outing_initial_values,
     price_initial_values,
-    public_dialogue_intent,
     public_plan,
 )
-from gosari.cache.semantic import lookup, store
+from gosari.cache.semantic import canonical_public_spec, lookup, store
 from gosari.config import Settings, get_settings
 from gosari.domain import CacheResolution, JobStage
-from gosari.domain.envelope import ProgressEvent, ResultEnvelope
+from gosari.domain.envelope import PersonalSearchSelection, ProgressEvent, ResultEnvelope, UiSpec
 from gosari.domain.errors import GosariError
 from gosari.logging import get_logger
 from gosari.personal.search import is_personal_search
@@ -73,8 +74,14 @@ class Job:
         self.created_at = utcnow()
         self.model_usage: dict[str, Any] = {}
         self.assistant_text = ""
+        self.ui_spec: UiSpec | None = None
+        self.ui_results: dict[str, ResultEnvelope] = {}
+        self.personal_search: PersonalSearchSelection | None = None
+        self.personal_form: Literal["notebook", "region_compare", "share"] | None = None
+        self.private_tools_used = False
         self.conversation_id = "default"
         self.general_help = False
+        self.dialogue_messages: list[dict[str, Any]] | None = None
         self.public_intent: dict[str, Any] = {}
         self.extra_scopes: dict[str, dict[str, Any]] = {}
 
@@ -108,9 +115,19 @@ class Job:
             "events": [e.model_dump(mode="json") for e in self.events],
             "model_usage": self.model_usage,
             "assistant_text": self.assistant_text,
+            "ui_spec": self.ui_spec.model_dump(mode="json") if self.ui_spec else None,
+            "ui_results": {
+                ref: result.model_dump(mode="json") for ref, result in self.ui_results.items()
+            },
+            "personal_search": self.personal_search.model_dump() if self.personal_search else None,
+            "personal_form": self.personal_form,
         }
 
     def emit_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        if event_type == "ui_spec":
+            from gosari.agent.ui import restore_ui
+
+            self.ui_spec, self.ui_results = restore_ui(payload.get("spec"), payload.get("results"))
         self.events.append(
             ProgressEvent(
                 event_id=new_id("evt"),
@@ -324,6 +341,7 @@ class Coordinator:
         *,
         conversation_id: str | None = None,
         general_help: bool = False,
+        dialogue_messages: list[dict[str, Any]] | None = None,
     ) -> Job:
         if not self._admission.acquire(blocking=False):
             raise GosariError("LOCAL_BUSY", {"retry_after_seconds": 1})
@@ -331,6 +349,7 @@ class Coordinator:
             job, spec = self._new_job(session, spec_payload)
             job.conversation_id = conversation_id or "default"
             job.general_help = general_help
+            job.dialogue_messages = dialogue_messages
             context = self._public_contexts.get((session.session_id, job.conversation_id), {})
             job.extra_scopes = {
                 name: scope
@@ -346,6 +365,8 @@ class Coordinator:
     def start_chat(
         self, session: Session, payload: dict[str, Any]
     ) -> tuple[Job | None, dict[str, Any] | None]:
+        from gosari.agent.dialogue_privacy import contains_sensitive_dialogue
+
         text = payload.get("text")
         conversation = payload.get("conversation_id") or "default"
         if (
@@ -356,64 +377,29 @@ class Coordinator:
             raise GosariError("INVALID_INPUT")
         if not isinstance(conversation, str) or len(conversation) > 128:
             raise GosariError("INVALID_INPUT")
+        if contains_sensitive_dialogue(text):
+            return None, self.prepare(session, {**payload, "personal": True})
         context = self._public_contexts.get((session.session_id, conversation), {})
-        private = detect_personal_hint(text) or is_personal_search(text)
-        previous = context.get("spec", {})
-        extras: dict[str, dict[str, Any]] = {}
-        if not private and any(word in text for word in ("날씨", "기상", "기온", "강수")):
-            if any(word in text for word in ("현재", "지금", "당일")):
-                extras["current_observation"] = {
-                    "operation": "current_observation",
-                    "source_ids": ["kma_aws"],
-                }
-            for clause in re.split(r"그리고|하고|및", text):
-                weather = public_plan(clause)
-                if weather and weather["operation"] in (
-                    "outing_compare",
-                    "history_compare",
-                    "forecast_compare",
-                ):
-                    extras[weather["operation"]] = build_public_spec(weather)
-        context = {**context, "pending_scopes": extras, "request": public_dialogue_intent(text)}
-        self._public_contexts[(session.session_id, conversation)] = context
-        continuation = (
-            None if private or detect_out_of_scope(text) else continue_public_price(previous, text)
-        )
-        if continuation is not None and (
-            not is_price_question(text)
-            or any(word in text for word in ("그럼", "그러면", "이번엔", "다시"))
-        ):
-            preparation = {
-                "classification": "public",
-                "feature": "price",
-                "needs_confirmation": False,
-                "spec": build_public_spec(continuation),
-            }
-        else:
-            preparation = self.prepare(session, payload)
-        ready_spec = preparation.get("spec")
-        local_plan = None if private else public_plan(text)
-        if isinstance(ready_spec, dict) and (
-            not preparation.get("needs_confirmation") or local_plan is not None
-        ):
-            return self.start_job(session, ready_spec, conversation_id=conversation), None
-        if extras and not is_price_question(text) and not private:
-            return self.start_job(
-                session, next(iter(extras.values())), conversation_id=conversation
-            ), None
-        if context["request"]["intent"] == "preparation_help" and not private:
-            preparation = {"classification": "public", "needs_confirmation": False}
-        if (
-            preparation.get("classification") == "personal"
-            or preparation.get("feature") in ("price", "outing", "out_of_scope")
-            or preparation.get("spec")
-        ):
-            return None, preparation
+        previous = context.get("dialogue_messages", [])
+        if not previous:
+            history = payload.get("history")
+            if isinstance(history, list):
+                previous = [
+                    {"role": message["role"], "content": message["content"]}
+                    for message in history[-12:]
+                    if isinstance(message, dict)
+                    and message.get("role") in ("user", "assistant")
+                    and isinstance(message.get("content"), str)
+                    and 0 < len(message["content"]) <= self.settings.max_text_length
+                    and not contains_sensitive_dialogue(message["content"])
+                ]
+        messages = [*previous, {"role": "user", "content": text}]
         return self.start_job(
             session,
             {"operation": "station_search", "source_ids": ["jeju_578"]},
             conversation_id=conversation,
             general_help=True,
+            dialogue_messages=messages,
         ), None
 
     def _execute_agent_turn(
@@ -461,29 +447,64 @@ class Coordinator:
             answer = "날씨나 고사리 가격 중 무엇을 확인할까요?"
             job.emit_event("assistant_completed", {"text": answer, "replacement": True})
         else:
-            name = public["operation"]
-            call_id = new_id("tool")
-            job.emit_event(
-                "tool_started",
-                {
-                    "tool_call_id": call_id,
-                    "name": name,
-                    "label": LABELS.get(name, name),
-                    "conditions": public,
-                },
-            )
-            envelope = execute(public)
-            job.emit_event(
-                "tool_completed",
-                {
-                    "tool_call_id": call_id,
-                    "name": name,
-                    "summary": LABELS.get(name, name),
-                    "result": envelope.model_dump(mode="json"),
-                },
-            )
+            from gosari.agent.ui import build_ui
+
+            outputs: dict[str, ResultEnvelope] = {}
             facts: dict[str, dict[str, Any]] = {}
-            compact_result(envelope, facts)
+            for name, scope in scopes.items():
+                call_id = new_id("tool")
+                job.emit_event(
+                    "tool_started",
+                    {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "label": LABELS.get(name, name),
+                        "conditions": scope,
+                    },
+                )
+                try:
+                    output = execute(scope)
+                except GosariError as error:
+                    if len(scopes) == 1 or job.cancelled or error.code == "JOB_DEADLINE_EXCEEDED":
+                        raise
+                    checkpoint()
+                    job.emit_event(
+                        "tool_failed",
+                        {
+                            "tool_call_id": call_id,
+                            "name": name,
+                            "code": error.code,
+                            "message": error.safe_message,
+                        },
+                    )
+                    continue
+                outputs[name] = output
+                compact_result(output, facts)
+                job.emit_event(
+                    "tool_completed",
+                    {
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "summary": LABELS.get(name, name),
+                        "result": output.model_dump(mode="json"),
+                    },
+                )
+            envelope = outputs.get(public["operation"]) or next(
+                iter(outputs.values()),
+                ResultEnvelope(request_id=job.request_id, data_status="unavailable"),
+            )
+            ui_spec, ui_results, source = build_ui(outputs, scopes)
+            if ui_spec is not None:
+                job.emit_event(
+                    "ui_spec",
+                    {
+                        "spec": ui_spec.model_dump(mode="json"),
+                        "results": {
+                            ref: value.model_dump(mode="json") for ref, value in ui_results.items()
+                        },
+                        "selection_source": source,
+                    },
+                )
             answer = fallback(facts)
             job.emit_event("assistant_completed", {"text": answer, "replacement": True})
         job.assistant_text = answer
@@ -498,18 +519,356 @@ class Coordinator:
             return
         facts: dict[str, dict[str, Any]] = {}
         reference = compact_result(envelope, facts)
+        key = (session.session_id, job.conversation_id)
+        previous = self._public_contexts.get(key, {}).get("dialogue_messages", [])
+        cursor = 0
+        for message in previous:
+            if message.get("role") != "tool":
+                continue
+            try:
+                prior = json.loads(str(message.get("content") or "{}"))
+                for fact_id in prior.get("facts", {}):
+                    if re.fullmatch(r"f\d+", fact_id):
+                        cursor = max(cursor, int(fact_id[1:]))
+            except ValueError, TypeError, AttributeError:
+                continue
+        reference["facts"] = {
+            f"f{cursor + index}": value for index, value in enumerate(facts.values(), start=1)
+        }
+        call_id = new_id("confirmed_tool")
+        messages = [
+            *previous,
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {
+                            "name": spec["operation"],
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": json.dumps(
+                    {**reference, "conditions": spec, "operation": spec["operation"]},
+                    ensure_ascii=False,
+                ),
+            },
+            {"role": "assistant", "content": job.assistant_text},
+        ]
         self._public_contexts[(session.session_id, job.conversation_id)] = {
             "spec": {key: value for key, value in spec.items() if key != "contains_personal_hint"},
             "reference": reference,
+            "dialogue_messages": self._recent_dialogue(messages),
         }
         if len(self._public_contexts) > self.settings.job_retention_limit:
             self._public_contexts.pop(next(iter(self._public_contexts)))
 
+    def _restore_job_ui(
+        self,
+        job: Job,
+        spec: dict[str, Any],
+        envelope: ResultEnvelope,
+        cached_answer: dict[str, Any] | None = None,
+    ) -> None:
+        from gosari.agent.ui import build_ui, restore_ui
+
+        if job.general_help and job.dialogue_messages is None:
+            return
+        selection_source = "fallback"
+        if cached_answer is not None:
+            cached_spec, cached_results = restore_ui(
+                cached_answer.get("ui_spec"), cached_answer.get("ui_results")
+            )
+            if cached_spec is not None:
+                selection_source = "cache"
+                job.ui_spec = cached_spec
+                job.ui_results = {
+                    ref: value.model_copy(update={"request_id": job.request_id}, deep=True)
+                    for ref, value in cached_results.items()
+                }
+        if job.ui_spec is None:
+            job.ui_spec, job.ui_results, _ = build_ui(
+                {spec["operation"]: envelope}, {spec["operation"]: spec}
+            )
+        if job.ui_spec is not None:
+            job.emit_event(
+                "ui_spec",
+                {
+                    "spec": job.ui_spec.model_dump(mode="json"),
+                    "results": {
+                        ref: value.model_dump(mode="json") for ref, value in job.ui_results.items()
+                    },
+                    "selection_source": selection_source,
+                },
+            )
+
     def _run_admitted(self, session: Session, job: Job, spec: dict[str, Any]) -> None:
         try:
-            self._execute_job(session, job, spec)
+            if job.dialogue_messages is not None:
+                self._execute_dialogue_job(session, job)
+            else:
+                self._execute_job(session, job, spec)
         finally:
             self._admission.release()
+
+    def _publish_done(self, session: Session, job: Job) -> None:
+        with self._lock:
+            usage_snapshot = getattr(self.llm, "usage_snapshot", None)
+            if callable(usage_snapshot):
+                job.model_usage = usage_snapshot()
+            job.emit_event(
+                "done",
+                {
+                    "stage": job.stage.value,
+                    "result": job.result.model_dump(mode="json") if job.result else None,
+                    "error": job.error,
+                    "assistant_text": job.assistant_text,
+                    "model_usage": job.model_usage,
+                    "ui_spec": job.ui_spec.model_dump(mode="json") if job.ui_spec else None,
+                    "ui_results": {
+                        ref: value.model_dump(mode="json") for ref, value in job.ui_results.items()
+                    },
+                    "personal_search": job.personal_search.model_dump()
+                    if job.personal_search
+                    else None,
+                    "personal_form": job.personal_form,
+                },
+            )
+            if session.lifecycle == "active":
+                session.jobs[job.job_id] = job.to_dict()
+            else:
+                self._jobs.pop(job.job_id, None)
+                self._job_sessions.pop(job.job_id, None)
+
+    @staticmethod
+    def _recent_dialogue(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # Cut at complete user-turn boundaries, preserving assistant/tool pairs.
+        turns = [index for index, message in enumerate(messages) if message.get("role") == "user"]
+        start = turns[-8] if len(turns) > 8 else 0
+        return [dict(message) for message in messages[start:]]
+
+    def _execute_dialogue_job(self, session: Session, job: Job) -> Job:
+        from gosari.cache.public_source import (
+            get_source_result,
+            public_source_singleflight,
+            put_source_result,
+        )
+
+        deadline = time.monotonic() + self.settings.job_deadline
+        last_result: ResultEnvelope | None = None
+
+        def checkpoint() -> None:
+            if session.lifecycle != "active":
+                job.cancelled = True
+            if job.cancelled:
+                raise GosariError("ACTION_NOT_ALLOWED", {"reason": "CANCELLED"})
+            if time.monotonic() >= deadline:
+                raise GosariError("JOB_DEADLINE_EXCEEDED")
+
+        def execute(arguments: dict[str, Any]) -> ResultEnvelope:
+            nonlocal last_result
+            checkpoint()
+            if arguments.get("operation") == "search_personal_records":
+                from gosari.personal.search import search_personal
+
+                selection = PersonalSearchSelection.model_validate(
+                    {"query": arguments.get("query", ""), "kind": arguments.get("kind"), "count": 0}
+                )
+                if len(selection.query) > self.settings.max_text_length:
+                    raise GosariError("INVALID_INPUT")
+                job.private_tools_used = True
+                found = search_personal(session, selection.query, kind=selection.kind)
+                job.personal_search = selection.model_copy(update={"count": len(found.items)})
+                return ResultEnvelope(
+                    request_id=job.request_id,
+                    data_status="complete" if found.items else "no_data",
+                    result={
+                        "count": len(found.items),
+                        "kinds": sorted({item.kind for item in found.items}),
+                        "ui_query": selection.query,
+                    },
+                )
+            if arguments.get("operation") == "open_personal_form":
+                feature = arguments.get("feature")
+                if feature not in ("notebook", "region_compare", "share"):
+                    raise GosariError("INVALID_INPUT")
+                job.private_tools_used = True
+                job.personal_form = feature
+                return ResultEnvelope(request_id=job.request_id, result={"feature": feature})
+            public = build_public_spec(arguments)
+            with public_source_singleflight(public, checkpoint=checkpoint):
+                cached = get_source_result(public)
+                if cached is not None:
+                    result = ResultEnvelope.model_validate({**cached, "request_id": job.request_id})
+                else:
+                    result = AnalysisEngine(self.settings, checkpoint=checkpoint).run(
+                        public, job.request_id
+                    )
+                    checkpoint()
+                    put_source_result(public, result, ttl_seconds=300)
+            last_result = result
+            return result
+
+        job.stage = JobStage.RUNNING
+        job.emit("accepted", "요청을 받았습니다.")
+        self.llm.begin_job()
+        try:
+            from gosari.agent.dialogue import run_dialogue
+            from gosari.agent.dialogue_privacy import requires_private_dialogue
+            from gosari.cache.dialogue_plan import read_plan, store_plan
+
+            checkpoint()
+            incoming = job.dialogue_messages or []
+            fresh = len(incoming) == 1 and incoming[0].get("role") == "user"
+            question = str(incoming[-1].get("content") or "") if incoming else ""
+            cacheable_fresh = fresh and not requires_private_dialogue(question)
+
+            def resolve() -> tuple[ResultEnvelope | None, str, list[dict[str, Any]]]:
+                plan = read_plan(question, now=utcnow()) if cacheable_fresh else None
+                cached = None
+                resolution = CacheResolution.BYPASS
+                if plan:
+                    resolution, cached = lookup(
+                        plan[0],
+                        json.dumps(plan[0], ensure_ascii=False, sort_keys=True),
+                        now=utcnow(),
+                    )
+                if cached is not None and plan:
+                    from gosari.agent.runtime import compact_result
+
+                    payload = cached["answer"]
+                    envelope = ResultEnvelope.model_validate(
+                        {
+                            **payload,
+                            "request_id": job.request_id,
+                            "cache_resolution": resolution,
+                            "evidence_ids": cached.get("evidence_ids", []),
+                        }
+                    )
+                    answer = str(payload.get("assistant_text") or "")
+                    self._restore_job_ui(job, plan[0], envelope, payload)
+                    facts: dict[str, dict[str, Any]] = {}
+                    reference = compact_result(envelope, facts)
+                    call_id = new_id("cached_tool")
+                    messages = [
+                        *incoming,
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": call_id,
+                                    "type": "function",
+                                    "function": {"name": plan[0]["operation"], "arguments": "{}"},
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": json.dumps(
+                                {**reference, "conditions": plan[0]}, ensure_ascii=False
+                            ),
+                        },
+                        {"role": "assistant", "content": answer},
+                    ]
+                    job.emit_event(
+                        "assistant_completed",
+                        {"text": answer, "replacement": True, "cache_hit": True},
+                    )
+                else:
+                    envelope, answer, messages, specs = run_dialogue(
+                        self.llm,
+                        incoming,
+                        execute,
+                        job.emit_event,
+                        checkpoint,
+                        max_steps=self.settings.max_plan_steps,
+                    )
+                    checkpoint()
+                    if (
+                        cacheable_fresh
+                        and not job.private_tools_used
+                        and envelope is not None
+                        and len(specs) == 1
+                    ):
+                        spec = canonical_public_spec(specs[0])
+                        payload = {
+                            **envelope.model_dump(mode="json"),
+                            "assistant_text": answer,
+                            "ui_spec": job.ui_spec.model_dump(mode="json") if job.ui_spec else None,
+                            "ui_results": {
+                                ref: value.model_dump(mode="json")
+                                for ref, value in job.ui_results.items()
+                            },
+                        }
+                        valid_until = utcnow() + timedelta(
+                            minutes=5
+                            if spec["operation"] == "outing_compare"
+                            else 15
+                            if spec["operation"] in ("current_observation", "forecast_compare")
+                            else 30
+                        )
+                        if store(
+                            spec,
+                            json.dumps(spec, ensure_ascii=False, sort_keys=True),
+                            payload,
+                            envelope.evidence_ids,
+                            now=utcnow(),
+                            valid_until=valid_until,
+                        ):
+                            store_plan(question, specs, now=utcnow(), valid_until=valid_until)
+                return envelope, answer, messages
+
+            from gosari.cache.semantic import response_cache_singleflight
+            from gosari.sources.weather import korea_today
+
+            normalized = unicodedata.normalize("NFC", question.strip())
+            digest = hashlib.sha256(normalized.encode()).hexdigest()
+            flight = (
+                response_cache_singleflight(
+                    {"operation": "station_search", "source_ids": ["jeju_578"]},
+                    f"dialogue:{korea_today().isoformat()}:{digest}",
+                    checkpoint=checkpoint,
+                )
+                if cacheable_fresh
+                else nullcontext()
+            )
+            with flight:
+                checkpoint()
+                envelope, answer, messages = resolve()
+            checkpoint()
+            job.assistant_text = answer
+            job.result = envelope or ResultEnvelope(request_id=job.request_id)
+            self._public_contexts[(session.session_id, job.conversation_id)] = {
+                "dialogue_messages": self._recent_dialogue(messages)
+            }
+            if len(self._public_contexts) > self.settings.job_retention_limit:
+                self._public_contexts.pop(next(iter(self._public_contexts)))
+            job.stage = JobStage.COMPLETED
+            job.emit("result_ready", "결과가 준비되었습니다.")
+        except GosariError as exc:
+            job.stage = JobStage.CANCELLED if job.cancelled else JobStage.FAILED
+            job.error = None if job.cancelled else exc.code
+            if last_result is not None:
+                job.result = last_result.model_copy(update={"data_status": "partial"}, deep=True)
+            job.emit(
+                "cancelled" if job.cancelled else "failed",
+                "취소되었습니다." if job.cancelled else exc.safe_message,
+            )
+        except Exception:
+            job.stage = JobStage.FAILED
+            job.error = "INTERNAL_ERROR"
+            job.emit("failed", "작업을 완료하지 못했습니다.")
+        self._publish_done(session, job)
+        return job
 
     def run_job(self, session: Session, spec_payload: dict[str, Any]) -> Job:
         job, spec = self._new_job(session, spec_payload)
@@ -560,6 +919,7 @@ class Coordinator:
                     fetched_at=answer.get("fetched_at"),
                     verified_on=answer.get("verified_on"),
                 )
+                self._restore_job_ui(job, spec, envelope, answer)
                 job.emit_event(
                     "assistant_completed",
                     {"text": job.assistant_text, "replacement": True, "cache_hit": True},
@@ -585,12 +945,15 @@ class Coordinator:
                         job.assistant_text = str(answer.get("assistant_text") or "")
                         envelope = ResultEnvelope.model_validate(answer)
                         resolution = second_resolution
+                        self._restore_job_ui(job, spec, envelope, answer)
                         job.emit_event(
                             "assistant_completed",
                             {"text": job.assistant_text, "replacement": True, "cache_hit": True},
                         )
                     else:
                         envelope = self._execute_agent_turn(session, job, spec, checkpoint)
+                        if job.ui_spec is None:
+                            self._restore_job_ui(job, spec, envelope)
                     checkpoint()
                     envelope.cache_resolution = resolution
                     if resolution == CacheResolution.MISS:
@@ -608,6 +971,13 @@ class Coordinator:
                                 "fetched_at": envelope.fetched_at,
                                 "verified_on": envelope.verified_on,
                                 "assistant_text": job.assistant_text,
+                                "ui_spec": job.ui_spec.model_dump(mode="json")
+                                if job.ui_spec
+                                else None,
+                                "ui_results": {
+                                    ref: value.model_dump(mode="json")
+                                    for ref, value in job.ui_results.items()
+                                },
                             },
                             envelope.evidence_ids,
                             now=utcnow(),
@@ -649,25 +1019,7 @@ class Coordinator:
             job.stage = JobStage.FAILED
             job.error = "INTERNAL_ERROR"
             job.emit("failed", "작업을 완료하지 못했습니다.")
-        with self._lock:
-            usage_snapshot = getattr(self.llm, "usage_snapshot", None)
-            if callable(usage_snapshot):
-                job.model_usage = usage_snapshot()
-            job.emit_event(
-                "done",
-                {
-                    "stage": job.stage.value,
-                    "result": job.result.model_dump(mode="json") if job.result else None,
-                    "error": job.error,
-                    "assistant_text": job.assistant_text,
-                    "model_usage": job.model_usage,
-                },
-            )
-            if session.lifecycle == "active":
-                session.jobs[job.job_id] = job.to_dict()
-            else:
-                self._jobs.pop(job.job_id, None)
-                self._job_sessions.pop(job.job_id, None)
+        self._publish_done(session, job)
         return job
 
     def get_job(self, session: Session, job_id: str) -> Job:

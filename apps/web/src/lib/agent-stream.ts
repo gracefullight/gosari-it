@@ -8,6 +8,9 @@ const EVENT_TYPES = new Set<AgentEventType>([
   "tool_started",
   "tool_completed",
   "tool_failed",
+  "ui_spec",
+  "personal_search",
+  "personal_form",
   "error",
   "done",
 ]);

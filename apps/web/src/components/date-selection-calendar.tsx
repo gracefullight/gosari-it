@@ -27,7 +27,7 @@ export function DateSelectionCalendar({
     if (value) calendar.current?.getApi().gotoDate(value);
   }, [value]);
   return (
-    <div className="min-w-0 text-base [--fc-border-color:var(--border)] [--fc-button-bg-color:var(--primary)] [--fc-button-border-color:var(--primary)] [--fc-button-hover-bg-color:var(--primary)] [--fc-button-hover-border-color:var(--primary)] [--fc-button-active-bg-color:var(--primary)] [--fc-button-active-border-color:var(--primary)] [--fc-event-bg-color:var(--primary)] [--fc-event-border-color:var(--primary)] [--fc-today-bg-color:var(--accent)] [&_.fc-toolbar-title]:text-base [&_.fc-toolbar-title]:font-semibold [&_.fc-daygrid-day-frame]:min-h-16 [&_.fc-daygrid-event]:cursor-pointer [&_.fc-daygrid-day-number]:p-0 [&_.fc-day-selected]:bg-accent">
+    <div className="min-w-0 text-base [&_.fc-button]:min-h-11 [&_.fc-button]:min-w-11 [&_.fc-button]:cursor-pointer [&_.fc-button]:text-base [--fc-border-color:var(--border)] [--fc-button-bg-color:var(--primary)] [--fc-button-border-color:var(--primary)] [--fc-button-hover-bg-color:var(--primary)] [--fc-button-hover-border-color:var(--primary)] [--fc-button-active-bg-color:var(--primary)] [--fc-button-active-border-color:var(--primary)] [--fc-event-bg-color:var(--primary)] [--fc-event-border-color:var(--primary)] [--fc-today-bg-color:var(--accent)] [&_.fc-toolbar-title]:text-base [&_.fc-toolbar-title]:font-semibold [&_.fc-daygrid-day-frame]:min-h-16 [&_.fc-daygrid-event]:cursor-pointer [&_.fc-daygrid-day-number]:p-0 [&_.fc-day-selected]:bg-accent">
       <FullCalendar
         ref={calendar}
         plugins={[dayGridPlugin, interactionPlugin]}
@@ -55,7 +55,7 @@ export function DateSelectionCalendar({
               type="button"
               aria-label={`${day} 선택`}
               aria-pressed={day === value}
-              className="m-0 flex size-11 items-center justify-center rounded-lg font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+              className="m-0 flex size-11 cursor-pointer items-center justify-center rounded-lg font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground"
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect(day);

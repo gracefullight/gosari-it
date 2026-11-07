@@ -47,7 +47,8 @@ it("orders candidates by ranking and shows forecast values and reasons", () => {
       checklist={["장갑"]}
     />
   );
-  expect(screen.getByText("1순위").parentElement?.textContent).toContain("조천");
+  const firstCandidate = screen.getByRole("article", { name: "1 / 2 후보" });
+  expect(within(firstCandidate).getByText("1순위").parentElement?.textContent).toContain("조천");
   expect(screen.getByText("19℃")).toBeTruthy();
   expect(screen.getByText("10%")).toBeTruthy();
   expect(screen.getByText("8km/h")).toBeTruthy();

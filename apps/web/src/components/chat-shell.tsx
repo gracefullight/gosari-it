@@ -1,12 +1,15 @@
-import { CircleNotchIcon } from "@phosphor-icons/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import characterUrl from "@/assets/character-256.png";
 import { AgentChatMessage } from "@/components/agent-chat-message";
+import { AgentResultDetailDialog } from "@/components/agent-result-detail-dialog";
 import { AnalysisConditionForm } from "@/components/analysis-condition-form";
 import { AnalysisJobStatus } from "@/components/analysis-job-status";
 import { ApprovalConfirmDialog } from "@/components/approval-confirm-dialog";
+import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatComposer } from "@/components/chat-composer";
+import { ChatReplySuggestions } from "@/components/chat-reply-suggestions";
+import { ChatThinkingIndicator } from "@/components/chat-thinking-indicator";
 import { NotebookForm } from "@/components/notebook-form";
 import { PersonalSearchResult } from "@/components/personal-search-result";
 import { PriceLookupPage } from "@/components/price-lookup-page";
@@ -19,6 +22,7 @@ import { WeatherMapPage } from "@/components/weather-map-page";
 import { useChat } from "@/hooks/use-chat";
 import { resolveAppRoute } from "@/lib/app-routes";
 import type { Preview } from "@/lib/gosari.types";
+import { hasDetailedResult } from "@/lib/result-display";
 import {
   activeFeatureAtom,
   appPathAtom,
@@ -51,16 +55,58 @@ function MessageView({
         <AlertDescription>{message.error}</AlertDescription>
       </Alert>
     );
-  if (message.kind === "agent") return <AgentChatMessage message={message} />;
-  if (message.kind === "result" && message.envelope)
-    return <ResultCard envelope={message.envelope} />;
+  if (message.kind === "agent")
+    return (
+      <>
+        <AgentChatMessage message={message} />
+        {message.personal_form ? (
+          <MessageView
+            message={{
+              id: `${message.id}-form`,
+              role: "assistant",
+              kind: "personal-form",
+              prepare: {
+                classification: "personal",
+                feature: message.personal_form,
+                needs_confirmation: true,
+              },
+            }}
+            onPreview={onPreview}
+          />
+        ) : null}
+      </>
+    );
+  if (message.kind === "result")
+    return hasDetailedResult(message.envelope) ? (
+      <AgentResultDetailDialog>
+        <ResultCard envelope={message.envelope} />
+      </AgentResultDetailDialog>
+    ) : null;
   if (message.kind === "clarify" && message.prepare)
     return <AnalysisConditionForm prepare={message.prepare} />;
   if (message.kind === "personal-form" && message.prepare) {
     const feature = message.prepare.feature;
     if (feature === "personal_search" && message.prepare.form?.query)
       return <PersonalSearchResult query={message.prepare.form.query} />;
-    if (feature === "notebook") return <NotebookForm mode="write" onPreview={onPreview} />;
+    if (feature === "notebook") {
+      const values = message.prepare.form?.initial_values;
+      return (
+        <NotebookForm
+          mode="write"
+          onPreview={onPreview}
+          initialDate={
+            typeof values?.experience_date === "string" ? values.experience_date : undefined
+          }
+          initialEvidenceIds={
+            Array.isArray(values?.public_evidence_ids)
+              ? values.public_evidence_ids.filter(
+                  (value): value is string => typeof value === "string"
+                )
+              : undefined
+          }
+        />
+      );
+    }
     if (feature === "share") return <ShareForm onPreview={onPreview} />;
     if (feature === "region_compare")
       return <RegionForm onPreview={onPreview} hideStationCompare />;
@@ -76,7 +122,7 @@ function MessageView({
   }
   return (
     <div className="max-w-[85%] rounded-2xl border border-border bg-card px-4 py-3 text-base">
-      {message.text}
+      <AssistantMarkdown text={message.text ?? ""} />
     </div>
   );
 }
@@ -97,20 +143,69 @@ export function ChatShell() {
   const busy = useAtomValue(busyAtom);
   const [lastCommitNotice, setLastCommitNotice] = useAtom(lastCommitNoticeAtom);
   const setRevision = useSetAtom(revisionCounterAtom);
-  const { messages, send, openFeature } = useChat();
+  const { messages, conversationId, send, openFeature, stopResponse } = useChat();
+  const [stopping, setStopping] = useState(false);
+  const [composerVoiceActive, setComposerVoiceActive] = useState(false);
+  const stopRequested = useRef(false);
+  const responding =
+    busy ||
+    messages.some(
+      (message) =>
+        message.stream?.status === "streaming" || message.stream?.status === "disconnected"
+    );
+  useEffect(() => {
+    if (!responding) {
+      stopRequested.current = false;
+      setStopping(false);
+    }
+  }, [responding]);
+  async function stop() {
+    if (stopRequested.current) return;
+    stopRequested.current = true;
+    setStopping(true);
+    if (!(await stopResponse())) {
+      stopRequested.current = false;
+      setStopping(false);
+    }
+  }
   const setMessages = useSetAtom(messagesAtom);
   const [pendingPreview, setPendingPreview] = useState<Preview | null>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const conversationScroll = useRef<HTMLElement>(null);
   const followAnswer = useRef(true);
+  const latestInputMessage = messages
+    .filter(
+      (message) =>
+        message.role === "user" ||
+        message.kind === "clarify" ||
+        message.kind === "personal-form" ||
+        message.personal_form
+    )
+    .at(-1);
+  const lastUserMessageId = latestInputMessage
+    ? `${latestInputMessage.id}:${latestInputMessage.personal_form ?? ""}`
+    : undefined;
+  const previousUserMessageId = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!activeFeature && followAnswer.current && (messages.length > 0 || busy))
-      bottom.current?.scrollIntoView({ behavior: "auto" });
+    if (lastUserMessageId && lastUserMessageId !== previousUserMessageId.current) {
+      followAnswer.current = true;
+      const view = conversationScroll.current;
+      view?.scrollTo?.({ top: view.scrollHeight, behavior: "auto" });
+    }
+    previousUserMessageId.current = lastUserMessageId;
+  }, [lastUserMessageId]);
+  useEffect(() => {
+    if (!activeFeature && followAnswer.current && (messages.length > 0 || busy)) {
+      const view = conversationScroll.current;
+      view?.scrollTo?.({ top: view.scrollHeight, behavior: "auto" });
+    }
   }, [activeFeature, messages, busy]);
   const isEmptyHome = !activeFeature && messages.length === 0 && route.found;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
+      <section
+        ref={conversationScroll}
+        aria-label="대화 내용"
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         onScroll={(event) => {
           const view = event.currentTarget;
@@ -196,26 +291,31 @@ export function ChatShell() {
               {busy &&
               messages.length > 0 &&
               !messages.some((message) => message.stream?.status === "streaming") ? (
-                <div
-                  className="flex items-center gap-2 text-base text-muted-foreground"
-                  role="status"
-                >
-                  <CircleNotchIcon
-                    className="size-4 animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                  답변 준비 중…
-                </div>
+                <ChatThinkingIndicator />
               ) : null}
-              <div ref={bottom} />
             </>
           )}
         </div>
-      </div>
+      </section>
       {!activeFeature && route.found ? (
-        <div className="flex h-[var(--app-footer-height)] min-h-[var(--app-footer-height)] shrink-0 items-center border-t border-border bg-background px-4 py-3">
-          <div className="mx-auto w-full max-w-4xl">
-            <ChatComposer onSend={send} disabled={busy} autoFocus />
+        <div className="sticky bottom-0 z-10 shrink-0 bg-background px-4 pt-3 pb-4 sm:px-6 sm:pb-5">
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+            <ChatReplySuggestions
+              messages={messages}
+              pending={responding}
+              voiceActive={composerVoiceActive}
+              onSend={send}
+            />
+            <ChatComposer
+              key={conversationId ?? "initial-conversation"}
+              onSend={send}
+              disabled={responding}
+              responding={responding}
+              stopping={stopping}
+              onStop={stop}
+              onVoiceActiveChange={setComposerVoiceActive}
+              autoFocus
+            />
           </div>
         </div>
       ) : null}
