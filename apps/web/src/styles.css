@@ -1,8 +1,82 @@
 @import "tailwindcss";
 @import "@gracefullight/krds-tw/theme.css";
+@source "../node_modules/@gracefullight/krds-tw/dist";
 
 :root {
+  --app-footer-height: 108px;
   --gosari-brand: #2e7d32;
+  /* CJK 대응 로컬 우선 스택: 외부 폰트 요청 없음 (SRS 오프라인 기본) */
+  --gosari-font-stack:
+    "Pretendard Variable", Pretendard, "Noto Sans KR", "Noto Sans CJK KR", system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif;
+
+  /* KRDS 기본 블루를 고사리잇 포레스트 그린(#2e7d32) 브랜드 토큰으로 매핑 */
+  --krds-btn-primary-fill: #2e7d32;
+  --krds-btn-primary-fill-hover: #246528;
+  --krds-btn-primary-fill-pressed: #1b4d1e;
+  --krds-btn-secondary-fill: #f3f9f4;
+  --krds-btn-secondary-fill-hover: #e3f2e5;
+  --krds-btn-secondary-fill-pressed: #d0e8d3;
+  --krds-btn-secondary-border: #2e7d32;
+  --krds-btn-tertiary-fill: #ffffff;
+  --krds-btn-tertiary-fill-hover: #f4f6f4;
+  --krds-btn-tertiary-border: #b8c4b9;
+  --krds-fg-primary: #1e5f22;
+  --krds-line-primary: #2e7d32;
+  --krds-surface-primary-subtler: #e8f5e9;
+  --krds-input-border-active: #2e7d32;
+
+  /* shadcn(Base UI) 변수 ← KRDS 토큰 매핑 */
+  --radius: 0.5rem;
+  --background: #f8faf8;
+  --foreground: #1a1f1b;
+  --card: #ffffff;
+  --card-foreground: #1a1f1b;
+  --popover: #ffffff;
+  --popover-foreground: #1a1f1b;
+  --primary: #2e7d32;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f8f2;
+  --secondary-foreground: #1b4d1e;
+  --muted: #f3f5f3;
+  --muted-foreground: #4b554e;
+  --accent: #e8f5e9;
+  --accent-foreground: #1b4d1e;
+  --destructive: #b91c1c;
+  --border: #d0dbd1;
+  --input: #b8c7b9;
+  --ring: #2e7d32;
+  --weather-sun: #be7300;
+  --weather-rain: #24748e;
+  --weather-sea: #e6f1f3;
+
+  /* shadcn-compat.css의 --color-* 직접 오버라이드 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+html {
+  font-family: var(--gosari-font-stack);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 html,
@@ -11,11 +85,68 @@ body,
   height: 100%;
 }
 
+@theme inline {
+  --text-xs: 1rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5;
+  --color-weather-sun: var(--weather-sun);
+  --color-weather-rain: var(--weather-rain);
+  --color-weather-sea: var(--weather-sea);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 body {
   margin: 0;
   font-size: 16px;
-  background: #fafaf8;
-  color: #1a1a1a;
+  line-height: 1.5;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+[data-name="nextstep-wrapper"],
+[data-name="nextstep-site"] {
+  height: 100%;
+  min-height: 0;
+}
+
+[data-slot="button"] {
+  min-height: 44px;
+  font-size: 1rem;
+}
+[data-slot="button"][aria-label] {
+  min-width: 44px;
+}
+[data-slot="input"],
+[data-slot="textarea"],
+select {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
 }
 
 .map-container {
@@ -23,4 +154,59 @@ body {
   height: 320px;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.weather-map-pin {
+  display: flex;
+  width: 76px;
+  height: 88px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 3px 12px rgb(26 31 27 / 10%);
+}
+.weather-map-marker {
+  z-index: 2;
+}
+.weather-map-connections {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.weather-map-connections line {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+  opacity: 0.65;
+}
+.weather-map-connections circle {
+  fill: var(--primary);
+}
+.maplibregl-ctrl-group button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.weather-map-pin:hover,
+.weather-map-pin:focus-visible {
+  border-color: var(--primary);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-scale {
+  font-size: 1rem;
+}
+.fc .fc-button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 1rem;
 }

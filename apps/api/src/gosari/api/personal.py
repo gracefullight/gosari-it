@@ -1,30 +1,77 @@
 """개인 작업 라우트 — 수첩·지역·나눔. prepare는 무변경, commit은 승인 결합 필수."""
 
-from datetime import date
-from typing import Any
+from datetime import date, datetime
+from typing import Any, Literal
 
 from litestar import Controller, Request, get, post
 from litestar.response import Response
+from pydantic import BaseModel
 
 from gosari.api.deps import check_origin, current_session
 from gosari.config import get_settings
 from gosari.domain.errors import GosariError
-from gosari.personal import notebook, regions, share
+from gosari.personal import (
+    ActionResult,
+    NotebookEntry,
+    Preview,
+    PrivateRegion,
+    ShareDraft,
+    notebook,
+    regions,
+    share,
+)
 from gosari.personal.approval import commit
 
 
-def _preview_response(preview: Any) -> dict[str, Any]:
-    return {
-        "preview_id": preview.preview_id,
-        "action": preview.action,
-        "target_id": preview.target_id,
-        "target_revision": preview.expected_revision,
-        "schema_version": preview.schema_version,
-        "display_payload": preview.display_payload,
-        "preview_hash": preview.preview_hash,
-        "expires_at": preview.expires_at.isoformat(),
-        "action_status": "preview",
-    }
+class PreviewResponse(BaseModel):
+    """미리보기 응답 — canonical_payload(개인 원문)는 노출하지 않는다."""
+
+    preview_id: str
+    action: str
+    target_id: str
+    target_revision: int
+    schema_version: str
+    display_payload: dict[str, Any]
+    preview_hash: str
+    expires_at: datetime
+    action_status: Literal["preview"] = "preview"
+
+
+class SharePreviewResponse(PreviewResponse):
+    """나눔 미리보기 응답 — 로컬 표시용 display 추가."""
+
+    display: dict[str, Any]
+
+
+class NotebookListResponse(BaseModel):
+    entries: list[NotebookEntry]
+
+
+class NotebookRecallResponse(BaseModel):
+    entries: list[NotebookEntry]
+    count: int
+    notice: str
+
+
+class RegionListResponse(BaseModel):
+    regions: list[PrivateRegion]
+
+
+class ShareDraftListResponse(BaseModel):
+    drafts: list[ShareDraft]
+
+
+def _preview_response(preview: Preview) -> PreviewResponse:
+    return PreviewResponse(
+        preview_id=preview.preview_id,
+        action=preview.action,
+        target_id=preview.target_id,
+        target_revision=preview.expected_revision,
+        schema_version=preview.schema_version,
+        display_payload=preview.display_payload,
+        preview_hash=preview.preview_hash,
+        expires_at=preview.expires_at,
+    )
 
 
 def _commit_body(data: dict[str, Any]) -> dict[str, Any]:
@@ -48,10 +95,10 @@ def _commit_body(data: dict[str, Any]) -> dict[str, Any]:
 class NotebookController(Controller):
     path = "/notebook"
 
-    @post("/prepare")
-    async def prepare(
+    @post("/prepare", sync_to_thread=True)
+    def prepare(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> PreviewResponse:
         check_origin(request)
         session = current_session(request)
         settings = get_settings()
@@ -69,10 +116,10 @@ class NotebookController(Controller):
             raise GosariError("INVALID_INPUT", {"fields": ["action"]})
         return _preview_response(preview)
 
-    @post("/commit", status_code=200)
-    async def commit(
+    @post("/commit", sync_to_thread=True, status_code=200)
+    def commit(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[ActionResult]:
         check_origin(request)
         session = current_session(request)
         body = _commit_body(data)
@@ -86,16 +133,16 @@ class NotebookController(Controller):
             body["preview_hash"],
             notebook.execute,
         )
-        return Response(result.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
+        return Response(result, headers={"Cache-Control": "no-store"})
 
-    @get("/")
-    async def list_entries(
+    @get("/", sync_to_thread=True)
+    def list_entries(
         self,
         request: Request[Any, Any, Any],
         start: str | None = None,
         end: str | None = None,
         alias: str | None = None,
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[NotebookListResponse]:
         session = current_session(request)
         entries = notebook.search(
             session,
@@ -104,24 +151,24 @@ class NotebookController(Controller):
             alias=alias,
         )
         return Response(
-            {"entries": [e.model_dump(mode="json") for e in entries]},
+            NotebookListResponse(entries=entries),
             headers={"Cache-Control": "no-store"},
         )
 
-    @get("/{record_id:str}")
-    async def get_entry(
+    @get("/{record_id:str}", sync_to_thread=True)
+    def get_entry(
         self, request: Request[Any, Any, Any], record_id: str
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[NotebookEntry]:
         session = current_session(request)
         entry = session.notebook.get(record_id)
         if entry is None:
             raise GosariError("RESOURCE_NOT_FOUND")
-        return Response(entry.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
+        return Response(entry, headers={"Cache-Control": "no-store"})
 
-    @post("/recall")
-    async def recall(
+    @post("/recall", sync_to_thread=True)
+    def recall(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[NotebookRecallResponse]:
         check_origin(request)
         session = current_session(request)
         entries = notebook.search(
@@ -131,22 +178,22 @@ class NotebookController(Controller):
             alias=data.get("alias"),
         )
         return Response(
-            {
-                "entries": [e.model_dump(mode="json") for e in entries],
-                "count": len(entries),
-                "notice": "현재 세션의 로컬 회고입니다. 외부 원문 전송 없음.",
-            },
+            NotebookRecallResponse(
+                entries=entries,
+                count=len(entries),
+                notice="",
+            ),
             headers={"Cache-Control": "no-store"},
         )
 
-    @post("/export/prepare")
-    async def export_prepare(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
+    @post("/export/prepare", sync_to_thread=True)
+    def export_prepare(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
         check_origin(request)
         current_session(request)
         raise GosariError("CAPABILITY_DISABLED", {"reason": "NOTEBOOK_EXPORT_POLICY_UNCONFIRMED"})
 
-    @post("/import/prepare")
-    async def import_prepare(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
+    @post("/import/prepare", sync_to_thread=True)
+    def import_prepare(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
         check_origin(request)
         current_session(request)
         raise GosariError("CAPABILITY_DISABLED", {"reason": "NOTEBOOK_IMPORT_POLICY_UNCONFIRMED"})
@@ -155,10 +202,10 @@ class NotebookController(Controller):
 class RegionsController(Controller):
     path = "/regions"
 
-    @post("/prepare")
-    async def prepare(
+    @post("/prepare", sync_to_thread=True)
+    def prepare(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> PreviewResponse:
         check_origin(request)
         session = current_session(request)
         action = data.get("action", "create")
@@ -173,10 +220,10 @@ class RegionsController(Controller):
             raise GosariError("INVALID_INPUT", {"fields": ["action"]})
         return _preview_response(preview)
 
-    @post("/commit", status_code=200)
-    async def commit(
+    @post("/commit", sync_to_thread=True, status_code=200)
+    def commit(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[ActionResult]:
         check_origin(request)
         session = current_session(request)
         body = _commit_body(data)
@@ -190,13 +237,13 @@ class RegionsController(Controller):
             body["preview_hash"],
             regions.execute,
         )
-        return Response(result.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
+        return Response(result, headers={"Cache-Control": "no-store"})
 
-    @get("/")
-    async def list_regions(self, request: Request[Any, Any, Any]) -> Response[dict[str, Any]]:
+    @get("/", sync_to_thread=True)
+    def list_regions(self, request: Request[Any, Any, Any]) -> Response[RegionListResponse]:
         session = current_session(request)
         return Response(
-            {"regions": [r.model_dump(mode="json") for r in session.regions.values()]},
+            RegionListResponse(regions=list(session.regions.values())),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -204,22 +251,31 @@ class RegionsController(Controller):
 class ShareController(Controller):
     path = "/share"
 
-    @post("/prepare", status_code=200)
-    async def prepare(
+    @post("/prepare", sync_to_thread=True, status_code=200)
+    def prepare(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[SharePreviewResponse]:
         check_origin(request)
         session = current_session(request)
-        preview, display = share.prepare(session, data)
+        action = data.get("action", "save")
+        if not isinstance(action, str):
+            raise GosariError("INVALID_INPUT", {"fields": ["action"]})
+        payload = data.get("payload", data)
+        if not isinstance(payload, dict):
+            raise GosariError("INVALID_INPUT", {"fields": ["payload"]})
+        draft_id = data.get("share_draft_id")
+        if draft_id is not None and not isinstance(draft_id, str):
+            raise GosariError("INVALID_INPUT", {"fields": ["share_draft_id"]})
+        preview, display = share.prepare(session, payload, action, draft_id)
         return Response(
-            {**_preview_response(preview), "display": display},
+            SharePreviewResponse(**_preview_response(preview).model_dump(), display=display),
             headers={"Cache-Control": "no-store"},
         )
 
-    @post("/commit", status_code=200)
-    async def commit(
+    @post("/commit", sync_to_thread=True, status_code=200)
+    def commit(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> Response[dict[str, Any]]:
+    ) -> Response[ActionResult]:
         check_origin(request)
         session = current_session(request)
         body = _commit_body(data)
@@ -233,18 +289,20 @@ class ShareController(Controller):
             body["preview_hash"],
             share.execute,
         )
-        return Response(result.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
+        return Response(result, headers={"Cache-Control": "no-store"})
 
-    @get("/")
-    async def list_drafts(self, request: Request[Any, Any, Any]) -> Response[dict[str, Any]]:
+    @get("/", sync_to_thread=True)
+    def list_drafts(
+        self, request: Request[Any, Any, Any]
+    ) -> Response[ShareDraftListResponse]:
         session = current_session(request)
         return Response(
-            {"drafts": [d.model_dump(mode="json") for d in session.share_drafts.values()]},
+            ShareDraftListResponse(drafts=list(session.share_drafts.values())),
             headers={"Cache-Control": "no-store"},
         )
 
-    @post("/file/commit")
-    async def file_commit(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
+    @post("/file/commit", sync_to_thread=True)
+    def file_commit(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
         check_origin(request)
         current_session(request)
         raise GosariError("CAPABILITY_DISABLED", {"reason": "SHARE_FILE_POLICY_UNCONFIRMED"})

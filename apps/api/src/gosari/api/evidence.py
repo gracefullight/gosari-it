@@ -11,8 +11,8 @@ from gosari.domain.errors import GosariError
 class EvidenceController(Controller):
     path = "/evidence"
 
-    @get("/{evidence_id:str}")
-    async def get_evidence(
+    @get("/{evidence_id:str}", sync_to_thread=True)
+    def get_evidence(
         self, request: Request[Any, Any, Any], evidence_id: str
     ) -> dict[str, Any]:
         evidence = get_evidence_store().get(evidence_id)

@@ -55,7 +55,9 @@ SAFE_MESSAGES: dict[str, str] = {
     "UPSTREAM_SCHEMA_CHANGED": "원천 응답 구조가 변경되었습니다.",
     "UPSTREAM_FAILED": "원천 조회에 실패했습니다.",
     "MODEL_UNAVAILABLE": "외부 모델을 사용할 수 없습니다. 검증된 표·근거만 제공합니다.",
-    "DATABASE_UNAVAILABLE": "공개 자료 DB를 사용할 수 없습니다.",
+    "DATABASE_UNAVAILABLE": (
+        "지금은 자료를 불러오거나 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."
+    ),
     "CAPABILITY_DISABLED": "비활성화된 기능입니다.",
     "JOB_DEADLINE_EXCEEDED": "작업 제한 시간을 초과했습니다. 기존 변경 상태를 먼저 확인해 주세요.",
 }

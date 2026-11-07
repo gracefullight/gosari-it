@@ -1,5 +1,6 @@
 """HTTP 계약 통합 테스트 — SRS §8, §12 승인 프로토콜·세션 격리."""
 
+import time
 from typing import Any
 
 import pytest
@@ -9,9 +10,33 @@ from gosari.app import create_app
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    from gosari.agent.coordinator import Coordinator
+    from gosari.config import Settings
+    from gosari.domain import CacheResolution
+
+    monkeypatch.setattr(
+        "gosari.agent.coordinator.lookup", lambda *args, **kwargs: (CacheResolution.BYPASS, None)
+    )
+    monkeypatch.setattr(
+        "gosari.agent.coordinator._coordinator", Coordinator(Settings(app_profile="replay"))
+    )
     with TestClient(create_app(), base_url="http://127.0.0.1") as c:
         yield c
+
+
+def _run_analysis(client: TestClient, *, json: dict[str, Any]):
+    response = client.post("/api/v1/analysis/jobs", json=json)
+    if response.status_code not in (200, 202):
+        return response
+    job = response.json()
+    deadline = time.monotonic() + 10
+    while job["stage"] not in ("completed", "failed", "cancelled", "partial"):
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+        response = client.get(f"/api/v1/jobs/{job['job_id']}")
+        job = response.json()
+    return response
 
 
 def _create_session(client: TestClient) -> dict[str, Any]:
@@ -77,8 +102,8 @@ def test_session_required(client: TestClient) -> None:
 
 def test_history_compare_replay(client: TestClient) -> None:
     _create_session(client)
-    response = client.post(
-        "/api/v1/analysis/jobs",
+    response = _run_analysis(
+        client,
         json={
             "spec": {
                 "operation": "history_compare",
@@ -212,6 +237,19 @@ def test_session_end_wipes_data(client: TestClient) -> None:
     assert client.get("/api/v1/notebook/").status_code == 401
 
 
+def test_session_resume_preserves_personal_records(client: TestClient) -> None:
+    first_session = _create_session(client)
+    preview = _notebook_preview(client)
+    consent = _consent(client, preview)
+    client.post("/api/v1/notebook/commit", json=_commit_body(preview, consent))
+    # 사용자가 다시 돌아와 /api/v1/sessions/ 를 재호출해도 서버에 저장된 기록이 유지되어야 한다
+    resumed = _create_session(client)
+    assert resumed["session_id"] == first_session["session_id"]
+    entries = client.get("/api/v1/notebook/").json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["activity_text"] == "합성 시연용 기록입니다."
+
+
 def test_share_prepare_and_commit(client: TestClient) -> None:
     _create_session(client)
     response = client.post(
@@ -265,8 +303,8 @@ def test_region_register_flow(client: TestClient) -> None:
 
 def test_retail_lookup_cards(client: TestClient) -> None:
     _create_session(client)
-    response = client.post(
-        "/api/v1/analysis/jobs",
+    response = _run_analysis(
+        client,
         json={
             "spec": {
                 "operation": "retail_lookup",
@@ -277,8 +315,107 @@ def test_retail_lookup_cards(client: TestClient) -> None:
     )
     result = response.json()["result"]
     cards = result["result"]["sample_cards"]
-    assert any(c["net_weight_value"] == 200 and c["price_value"] == 32500 for c in cards)
+    card_200g = next(c for c in cards if c["net_weight_value"] == 200 and c["price_value"] == 32500)
+    assert card_200g["price_per_kg_value"] == 162500
+    assert "conversion_formula" in card_200g
     assert result["link_status"] == "link_ready"
+
+
+def test_survey_link_with_sample_cards(client: TestClient) -> None:
+    _create_session(client)
+    response = _run_analysis(
+        client,
+        json={
+            "spec": {
+                "operation": "survey_link",
+                "source_ids": ["forestinfo"],
+                "price_channel": "survey",
+            }
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["data_status"] == "unavailable"
+    assert result["source_mode"] == "link"
+    assert result["link_status"] == "link_ready"
+    sample_cards = result["result"]["sample_cards"]
+    prices = {c["price_value"] for c in sample_cards}
+    assert {11500, 15000, 18500}.issubset(prices)
+    assert result["result"]["links"]
+
+
+def test_region_compare_replay(client: TestClient) -> None:
+    _create_session(client)
+    response = _run_analysis(
+        client,
+        json={
+            "spec": {
+                "operation": "region_compare",
+                "source_ids": ["jeju_579", "kma_asos"],
+                "station_selections": [
+                    {"source_id": "jeju_579", "station_name": "선흘"},
+                    {"source_id": "kma_asos", "station_id": "184", "station_name": "제주"},
+                ],
+                "years": [2024],
+                "month_day_start": "04-01",
+                "month_day_end": "05-31",
+                "elements": ["daily_rainfall", "average_temperature"],
+            }
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    per_station = result["result"]["per_station"]
+    assert "선흘" in per_station
+    assert "제주(184)" in per_station
+    assert "full_period" in per_station["선흘"]
+    assert "value_states" in per_station["선흘"]
+
+
+def test_outing_compare_and_partial_failure(client: TestClient) -> None:
+    _create_session(client)
+    response = _run_analysis(
+        client,
+        json={
+            "spec": {
+                "operation": "outing_compare",
+                "source_ids": ["kma_aws", "jeju_579", "kma_asos"],
+                "candidates": [
+                    {
+                        "label": "토요일 오전 (선흘)",
+                        "date": "2026-04-18",
+                        "time_slot": "오전",
+                        "station_name": "선흘",
+                    },
+                    {
+                        "label": "일요일 오전 (미등록지점)",
+                        "date": "2026-04-19",
+                        "time_slot": "오전",
+                        "station_name": "존재하지않는관측소",
+                    },
+                ],
+                "preferred_elements": ["daily_rainfall", "average_temperature", "wind_speed"],
+            }
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["data_status"] == "partial"
+    assert len(result["result"]["candidates"]) == 1
+    assert len(result["result"]["failed_candidates"]) == 1
+    assert result["result"]["preparation_checklist"]
+
+
+def test_out_of_scope_guardrail(client: TestClient) -> None:
+    _create_session(client)
+    response = client.post(
+        "/api/v1/analysis/prepare",
+        json={"text": "여기서 고사리 채취해도 되나요? 불법인가요?"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["feature"] == "out_of_scope"
+    assert body["needs_confirmation"] is True
 
 
 def test_disabled_file_capabilities(client: TestClient) -> None:
@@ -286,3 +423,108 @@ def test_disabled_file_capabilities(client: TestClient) -> None:
     response = client.post("/api/v1/notebook/export/prepare")
     assert response.status_code == 503
     assert response.json()["error"] == "CAPABILITY_DISABLED"
+
+
+def test_session_resume_and_pg18_persistence(client: TestClient, monkeypatch) -> None:
+    created = client.post("/api/v1/sessions/").json()
+    sid = created["session_id"]
+
+    preview = client.post(
+        "/api/v1/notebook/prepare",
+        json={
+            "action": "create",
+            "payload": {
+                "experience_date": "2026-04-20",
+                "activity_text": "PostgreSQL 18 영속 보관 테스트 기록",
+                "companion_aliases": ["어머니"],
+                "amount_value": "2",
+                "amount_unit": "봉지",
+            },
+        },
+    ).json()
+    consent = _consent(client, preview)
+    committed = client.post("/api/v1/notebook/commit", json=_commit_body(preview, consent))
+    assert committed.status_code == 200
+
+    # 재방문 시 POST /api/v1/sessions/ 호출해도 기존 세션 복원
+    resumed = client.post("/api/v1/sessions/", headers={"X-Gosari-Session": sid}).json()
+    assert resumed["session_id"] == sid
+    assert resumed["notice"] == ""
+
+    recalled = client.post("/api/v1/notebook/recall", json={}).json()
+    assert recalled["count"] == 1
+    assert recalled["entries"][0]["activity_text"] == "PostgreSQL 18 영속 보관 테스트 기록"
+
+    # PostgreSQL 18 save / _load_from_db SQL 실행 경로 검증
+    from contextlib import contextmanager
+
+    from gosari.sessions import get_session_store
+
+    store = get_session_store()
+    session_obj = store.get(sid)
+    executed_sql: list[str] = []
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchone(self):
+            return self._rows[0] if self._rows else None
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def execute(self, sql: str, params=None):
+            executed_sql.append(sql.strip())
+            if "FROM app_session" in sql:
+                return FakeCursor(
+                    [
+                        (
+                            session_obj.session_id,
+                            session_obj.created_at,
+                            session_obj.expires_at,
+                            session_obj.last_activity_at,
+                            "active",
+                        )
+                    ]
+                )
+            if "FROM personal_notebook_entry" in sql:
+                entry = next(iter(session_obj.notebook.values()))
+                return FakeCursor(
+                    [
+                        (
+                            entry.record_id,
+                            entry.revision,
+                            entry.experience_date,
+                            entry.companion_aliases,
+                            entry.activity_text,
+                            str(entry.amount_value),
+                            entry.amount_unit,
+                            entry.created_at,
+                            entry.updated_at,
+                        )
+                    ]
+                )
+            return FakeCursor([])
+
+        def commit(self):
+            executed_sql.append("COMMIT")
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConn()
+
+    monkeypatch.setattr("gosari.sessions.db_available", lambda: True)
+    monkeypatch.setattr("gosari.sessions.connection", fake_connection)
+
+    store.save(session_obj)
+    assert any("INSERT INTO app_session" in s for s in executed_sql)
+    assert any("INSERT INTO personal_notebook_entry" in s for s in executed_sql)
+
+    loaded = store._load_from_db(sid)
+    assert loaded is not None
+    assert len(loaded.notebook) == 1
+    assert (
+        next(iter(loaded.notebook.values())).activity_text == "PostgreSQL 18 영속 보관 테스트 기록"
+    )

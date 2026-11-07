@@ -7,27 +7,27 @@ from litestar import Controller, Request, get, post
 from gosari.agent.analysis import AnalysisEngine
 from gosari.api.deps import check_origin, current_session
 from gosari.config import get_settings
+from gosari.domain.envelope import ResultEnvelope
 from gosari.sessions import new_id
 
 
 class StationsController(Controller):
     path = "/stations"
 
-    @get("/")
-    async def list_stations(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
+    @get("/", sync_to_thread=True)
+    def list_stations(self, request: Request[Any, Any, Any]) -> ResultEnvelope:
         current_session(request)
         engine = AnalysisEngine()
-        envelope = engine.run(
+        return engine.run(
             {"operation": "station_search", "source_ids": ["jeju_578"]}, new_id("req")
         )
-        return envelope.model_dump(mode="json")
 
 
 class MapsController(Controller):
     path = "/maps"
 
-    @post("/prepare")
-    async def prepare(
+    @post("/prepare", sync_to_thread=True)
+    def prepare(
         self, request: Request[Any, Any, Any], data: dict[str, Any]
     ) -> dict[str, Any]:
         check_origin(request)

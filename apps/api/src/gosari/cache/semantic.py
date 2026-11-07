@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 FINGERPRINT_VERSION = "fingerprint-v1"
 CALCULATION_VERSION = "calc-v1"
-PROMPT_VERSION = "prompt-v1"
+PROMPT_VERSION = "prompt-v3-bound-facts"
 TOOL_SCHEMA_VERSION = "tools-v1"
 SAFETY_POLICY_VERSION = "safety-v1"
 
@@ -58,13 +58,22 @@ def condition_fingerprint(spec: dict[str, Any]) -> str:
         "origin_filter": spec.get("origin_filter"),
         "shipping_basis": spec.get("shipping_basis"),
         "coupon_basis": spec.get("coupon_basis"),
+        "settlement_date": spec.get("settlement_date"),
+        "settlement_date_end": spec.get("settlement_date_end"),
+        "package_code": spec.get("package_code"),
+        "candidates": spec.get("candidates"),
+        "preferred_elements": spec.get("preferred_elements"),
         "parser_version": "1",
         "calculation_version": CALCULATION_VERSION,
         "prompt_version": PROMPT_VERSION,
         "tool_schema_version": TOOL_SCHEMA_VERSION,
         "safety_policy_version": SAFETY_POLICY_VERSION,
         "embedding_revision": get_settings().embedding_revision,
+        "embedding_model": get_settings().embedding_model_path,
+        "llm_model": get_settings().llm_model,
     }
+    if spec.get("operation") == "current_observation":
+        body["current_provider_version"] = "kma-ultra-short-v1"
     return json_hash(body)
 
 
@@ -110,12 +119,13 @@ def lookup(
                 SELECT cache_entry_id, public_answer, evidence_ids, valid_until
                 FROM public_response_cache
                 WHERE condition_fingerprint = %s AND exact_query_hash = %s
-                  AND reusable = true AND invalidated_at IS NULL AND valid_until > %s
+                  AND reusable = true AND quality_passed = true
+                  AND rights_status = 'public_api' AND invalidated_at IS NULL AND valid_until > %s
                 LIMIT 1
                 """,
                 (fingerprint, eq_hash, now),
             ).fetchone()
-            if row:
+            if row and row[2] and result_cacheable(row[1]):
                 conn.execute(
                     "UPDATE public_response_cache SET hit_count = hit_count + 1, "
                     "last_used_at = %s WHERE cache_entry_id = %s",
@@ -140,14 +150,20 @@ def lookup(
                        1 - (embedding <=> %s::vector) AS similarity
                 FROM public_response_cache
                 WHERE condition_fingerprint = %s
-                  AND reusable = true AND invalidated_at IS NULL AND valid_until > %s
+                  AND reusable = true AND quality_passed = true
+                  AND rights_status = 'public_api' AND invalidated_at IS NULL AND valid_until > %s
                 ORDER BY embedding <=> %s::vector
                 LIMIT 5
                 """,
                 (vector, fingerprint, now, vector),
             ).fetchall()
             for cand in candidates:
-                if cand[3] is not None and float(cand[3]) >= threshold:
+                if (
+                    cand[2]
+                    and result_cacheable(cand[1])
+                    and cand[3] is not None
+                    and float(cand[3]) >= threshold
+                ):
                     conn.execute(
                         "UPDATE public_response_cache SET hit_count = hit_count + 1, "
                         "last_used_at = %s WHERE cache_entry_id = %s",
@@ -168,8 +184,45 @@ def result_cacheable(result: dict[str, Any]) -> bool:
     """필요 값에 missing/error/unresolved_blank·충돌이 있으면 저장 금지. valid_zero는 허용."""
     if result.get("data_status") not in ("complete",):
         return False
-    states = result.get("value_states", [])
-    return all(s in ("valid", "valid_zero") for s in states)
+    if result.get("warnings") or result.get("explanation_verified") is False:
+        return False
+    answer = result.get("result", {})
+    if isinstance(answer, dict) and answer.get("explanation"):
+        from gosari.agent.llm import explanation_matches
+
+        if not explanation_matches(str(answer["explanation"]), answer):
+            return False
+
+    def valid(value: Any, key: str = "") -> bool:
+        if key == "forecast" and (
+            not isinstance(value, list)
+            or any(
+                not isinstance(row, dict)
+                or row.get("value") is None
+                or (isinstance(row["value"], str) and not row["value"].strip())
+                for row in value
+            )
+        ):
+            return False
+        if key in ("temperature_c", "positive_days", "valid_days", "average") and value is None:
+            return False
+        if key in ("value_state", "state") and isinstance(value, str):
+            return value in ("valid", "valid_zero")
+        if key in ("value_states", "value_state_counts"):
+            if isinstance(value, dict):
+                return all(
+                    state in ("valid", "valid_zero") or count == 0 for state, count in value.items()
+                )
+            if isinstance(value, list):
+                return all(state in ("valid", "valid_zero") for state in value)
+            return False
+        if isinstance(value, dict):
+            return all(valid(item, str(name)) for name, item in value.items())
+        if isinstance(value, list):
+            return all(valid(item) for item in value)
+        return True
+
+    return valid(result)
 
 
 def store(
@@ -182,7 +235,7 @@ def store(
     valid_until: datetime,
 ) -> bool:
     bypass = eligibility_bypass_reason(spec, safe_text)
-    if bypass or not db_available() or not result_cacheable(answer):
+    if bypass or not db_available() or not evidence_ids or not result_cacheable(answer):
         return False
     vector = get_engine().embed(safe_text)
     if vector is None:
@@ -200,7 +253,17 @@ def store(
                      safety_policy_version, created_at, valid_until,
                      quality_passed, reusable, rights_status)
                 VALUES (%s,%s,%s,%s,%s::vector,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,true,true,%s)
-                ON CONFLICT (exact_query_hash) DO NOTHING
+                ON CONFLICT (exact_query_hash) DO UPDATE SET
+                    public_answer = EXCLUDED.public_answer,
+                    evidence_ids = EXCLUDED.evidence_ids,
+                    embedding = EXCLUDED.embedding,
+                    created_at = EXCLUDED.created_at,
+                    valid_until = EXCLUDED.valid_until,
+                    invalidated_at = NULL,
+                    quality_passed = true,
+                    reusable = true
+                WHERE public_response_cache.valid_until <= EXCLUDED.created_at
+                   OR public_response_cache.invalidated_at IS NOT NULL
                 """,
                 (
                     f"cache-{eq_hash[:24]}",

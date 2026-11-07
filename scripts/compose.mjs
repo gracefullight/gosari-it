@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readCapabilities, waitForReadiness } from "./runtime-readiness.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROJECT = "gosariit-local";
@@ -179,19 +180,7 @@ function build() {
   writeFileSync(join(LOCAL, "build-manifest.json"), JSON.stringify(manifest, null, 2));
 }
 
-function waitForApp(port) {
-  for (let i = 0; i < 60; i++) {
-    const res = spawnSync("node", [
-      "-e",
-      `fetch('http://127.0.0.1:${port}/api/v1/health/ready').then(r=>r.json()).then(d=>{console.log(JSON.stringify(d));process.exit(0)}).catch(()=>process.exit(1))`,
-    ]);
-    if (res.status === 0) return JSON.parse(res.stdout);
-    spawnSync("node", ["-e", "setTimeout(()=>{},1000)"]);
-  }
-  fail("앱 readiness 제한 시간 초과");
-}
-
-function up() {
+async function up() {
   acquireLock();
   try {
     doctor();
@@ -210,23 +199,20 @@ function up() {
     log("up: 앱 시작");
     run("docker", [...composeArgs(), "up", "-d", "--no-deps", "--wait", "--wait-timeout", "180", "app"]);
     const port = composeEnv().APP_PORT;
-    const ready = waitForApp(port);
+    const ready = await waitForReadiness({ port });
     log(`✓ 준비 완료 — http://127.0.0.1:${port}`);
     log(`  상태: ${ready.status} · 프로필: ${ready.profile} · 외부요청: ${ready.external_requests}`);
-    log("  개인 기록은 세션 한정. 이미지/설정 변경·재시작 시 세션이 소실될 수 있습니다.");
+    log("  개인 기록은 DB에 보관됩니다. 실행 중인 조회는 재시작 시 중단될 수 있습니다.");
   } finally {
     releaseLock();
   }
 }
 
-function status() {
+async function status() {
   run("docker", [...composeArgs(), "ps"]);
   const port = composeEnv().APP_PORT;
-  const res = spawnSync("node", [
-    "-e",
-    `fetch('http://127.0.0.1:${port}/api/v1/capabilities/').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(()=>console.log('앱 응답 없음'))`,
-  ]);
-  process.stdout.write(res.stdout || "");
+  const capabilities = await readCapabilities({ port });
+  log(JSON.stringify(capabilities, null, 2));
 }
 
 function logs() {
@@ -236,7 +222,7 @@ function logs() {
 function down() {
   acquireLock();
   try {
-    log("down: 컨테이너 정리 (공개 DB 볼륨 유지)");
+    log("down: 컨테이너 정리 (DB 볼륨과 개인 기록 유지)");
     run("docker", [...composeArgs(), "down", "--remove-orphans"]);
     log("✓ down 완료 — 볼륨 유지됨");
   } finally {
@@ -247,13 +233,13 @@ function down() {
 function reset() {
   const confirm = process.argv.find((a) => a.startsWith("--confirm="));
   if (confirm !== `--confirm=${PROJECT}`) {
-    fail(`reset은 공개 DB 데이터를 삭제합니다. 확인하려면 --confirm=${PROJECT} 를 전달하세요.`);
+    fail(`reset은 공개 자료와 개인 기록을 삭제합니다. 확인하려면 --confirm=${PROJECT} 를 전달하세요.`);
   }
   acquireLock();
   try {
     run("docker", [...composeArgs(), "down", "--remove-orphans"]);
-    run("docker", ["volume", "rm", `${PROJECT}_public_pgdata`], { allowFailure: true });
-    log("✓ reset 완료 — 공개 DB 볼륨 삭제됨 (비밀 유지)");
+    run("docker", ["volume", "rm", `${PROJECT}_public_pgdata`]);
+    log("✓ reset 완료 — DB 볼륨과 개인 기록 삭제됨 (비밀 유지)");
   } finally {
     releaseLock();
   }
@@ -264,4 +250,8 @@ const commands = { doctor, init, up, status, logs, down, reset };
 if (!commands[command]) {
   fail(`사용법: node scripts/compose.mjs <${Object.keys(commands).join("|")}>`);
 }
-commands[command]();
+try {
+  await commands[command]();
+} catch (error) {
+  fail(error instanceof Error ? error.message : "작업 실패");
+}

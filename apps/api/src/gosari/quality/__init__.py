@@ -15,11 +15,15 @@ class InterpretedValue:
 
 
 def interpret_numeric(
-    raw: str | None, *, blank_state: ValueState = ValueState.UNRESOLVED_BLANK
+    raw: str | int | float | Decimal | None,
+    *,
+    blank_state: ValueState = ValueState.UNRESOLVED_BLANK,
 ) -> InterpretedValue:
     """숫자 0은 valid_zero, 의미 미확정 공란은 unresolved_blank. 공란을 0으로 치환하지 않는다."""
     if raw is None:
         return InterpretedValue(raw=None, numeric=None, state=ValueState.MISSING)
+    if not isinstance(raw, str):
+        raw = str(raw)
     text = raw.strip()
     if text == "":
         return InterpretedValue(raw=raw, numeric=None, state=blank_state)

@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     app_port: int = 8765
     app_profile: Literal["center", "replay", "integration_test", "public_scale_test"] = "center"
 
-    # 세션 (운영자 결정 값 — SRS TBD-01의 제안 기본치)
-    session_idle_ttl: int = 1800
-    session_absolute_ttl: int = 28800
+    # 세션 및 서버(PostgreSQL 18) 내 개인 기록 보관 기간 (기본 365일 — 재방문 시에도 확인 가능)
+    session_idle_ttl: int = 31536000
+    session_absolute_ttl: int = 31536000
 
     # 동의 (제안 기본치)
     preview_ttl: int = 600
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     db_thread_limit: int = 8
 
     # 모델
-    llm_model: str = "gpt-6-luna"
+    llm_model: Literal["gpt-6-luna"] = "gpt-6-luna"
     openai_api_key: str | None = None
     openai_api_key_file: str | None = None
     model_concurrency: int = 2
@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     max_plan_steps: int = 8
     max_retries: int = 3
     job_deadline: int = 120
+    analysis_concurrency: int = 4
+    analysis_queue_limit: int = 8
+    job_retention_limit: int = 1000
 
     # 원천 키
     jeju_project_key: str | None = None
@@ -72,7 +75,7 @@ class Settings(BaseSettings):
     embedding_revision: str = "main"
 
     # 캐시 도메인 — 검증된 문턱값·TTL만 허용. 미설정 시 semantic 조회 우회.
-    domain_threshold_config: str | None = None
+    domain_threshold_config: str | None = "0.90"
     freshness_policy_config: str | None = None
 
     # 지도

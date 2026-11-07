@@ -50,7 +50,7 @@ explicit = true
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.poe.tasks]
-dev = "uvicorn gosari.app:create_app --factory --reload --port 8000"
+dev = "python scripts/dev.py"
 start = "uvicorn gosari.app:create_app --factory --host 0.0.0.0 --port 8765"
 
 # Database

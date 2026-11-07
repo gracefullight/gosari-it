@@ -58,7 +58,6 @@ def deduplicate(observations: list[Observation]) -> DedupeResult:
             result.duplicate_count += len(rows) - 1
         else:
             result.conflicts.append((key, rows))
-            result.unique.append(first)
     return result
 
 
