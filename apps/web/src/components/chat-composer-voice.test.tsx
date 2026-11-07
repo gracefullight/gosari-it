@@ -1,8 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ChatComposer } from "@/components/chat-composer";
 
-const voiceScenario = vi.hoisted(() => ({ text: "받아쓴 문장" }));
+const voiceScenario = vi.hoisted(() => ({
+  text: "받아쓴 문장",
+  end: null as (() => void) | null,
+}));
 
 vi.mock("@/hooks/use-browser-dictation", async () => {
   const { useRef, useState } = await import("react");
@@ -15,6 +18,12 @@ vi.mock("@/hooks/use-browser-dictation", async () => {
     ) => {
       const [active, setActive] = useState(false);
       const original = useRef("");
+      const end = () => {
+        options.onConfirm(mergeDictationText(original.current, voiceScenario.text));
+        setActive(false);
+        options.onListeningChange?.(false);
+      };
+      voiceScenario.end = end;
       return {
         status: active ? "listening" : "idle",
         supported: true,
@@ -27,11 +36,7 @@ vi.mock("@/hooks/use-browser-dictation", async () => {
           setActive(true);
           options.onListeningChange?.(true);
         },
-        finish: () => {
-          options.onConfirm(mergeDictationText(original.current, voiceScenario.text));
-          setActive(false);
-          options.onListeningChange?.(false);
-        },
+        finish: end,
         cancel: () => {
           options.onCancel?.();
           setActive(false);
@@ -44,9 +49,10 @@ vi.mock("@/hooks/use-browser-dictation", async () => {
 afterEach(() => {
   cleanup();
   voiceScenario.text = "받아쓴 문장";
+  voiceScenario.end = null;
 });
 
-it("confirms dictation into an editable draft without sending and restores focus", async () => {
+it("automatically restores an editable draft and enables sending when speech ends without sending it", async () => {
   const send = vi.fn();
   const active = vi.fn();
   render(<ChatComposer onSend={send} onVoiceActiveChange={active} />);
@@ -58,12 +64,15 @@ it("confirms dictation into an editable draft without sending and restores focus
   expect(screen.queryByRole("textbox", { name: "메시지 입력" })).toBeNull();
   fireEvent.keyDown(document, { key: "Enter", metaKey: true });
   expect(send).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "입력란에 넣기" }));
+  act(() => voiceScenario.end?.());
   const input = (await screen.findByRole("textbox", {
     name: "메시지 입력",
   })) as HTMLTextAreaElement;
   expect(input.value).toBe("기존 초안\n받아쓴 문장");
   expect(send).not.toHaveBeenCalled();
+  expect(
+    (screen.getByRole("button", { name: "메시지 보내기" }) as HTMLButtonElement).disabled
+  ).toBe(false);
   await waitFor(() => expect(document.activeElement).toBe(input));
   fireEvent.change(input, { target: { value: "직접 고친 질문" } });
   fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
@@ -92,7 +101,7 @@ it("preserves oversized dictated text and blocks sending until the user shortens
   voiceScenario.text = "가".repeat(2001);
   render(<ChatComposer onSend={send} />);
   fireEvent.click(screen.getByRole("button", { name: "음성으로 입력" }));
-  fireEvent.click(await screen.findByRole("button", { name: "입력란에 넣기" }));
+  act(() => voiceScenario.end?.());
   const input = (await screen.findByRole("textbox", {
     name: "메시지 입력",
   })) as HTMLTextAreaElement;

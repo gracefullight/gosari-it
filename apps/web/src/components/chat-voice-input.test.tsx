@@ -45,7 +45,7 @@ describe("chat voice control", () => {
     fireEvent.click(screen.getByRole("button", { name: "음성 입력 취소" }));
     expect(voice.state.cancel).toHaveBeenCalledOnce();
   });
-  it("starts only on the microphone control and never confirms text automatically", () => {
+  it("starts only on the microphone control and does not insert text before any result", () => {
     const confirm = vi.fn();
     render(<ChatVoiceInput initialText="내 초안" onConfirm={confirm} />);
     expect(voice.state.start).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe("chat voice control", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("paints real supplied samples directly into SVG and exposes explicit confirm/cancel", () => {
+  it("paints real supplied samples directly into SVG and allows stopping or cancelling", () => {
     Object.assign(voice.state, { status: "listening", active: true, transcript: "제주 날씨" });
     const { container } = render(<ChatVoiceInput initialText="내 초안" onConfirm={vi.fn()} />);
     const bar = container.querySelector("rect");
@@ -69,7 +69,7 @@ describe("chat voice control", () => {
     act(() => voice.paint?.(Array<number>(64).fill(0)));
     expect(bar?.getAttribute("height")).toBe("2");
     expect(screen.getByRole("status").textContent).toBe("듣고 있습니다…");
-    fireEvent.click(screen.getByRole("button", { name: "입력란에 넣기" }));
+    fireEvent.click(screen.getByRole("button", { name: "음성 입력 마치기" }));
     expect(voice.state.finish).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "음성 입력 취소" }));
     expect(voice.state.cancel).toHaveBeenCalledOnce();

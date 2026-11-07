@@ -5,7 +5,6 @@ export type DictationStatus =
   | "starting"
   | "listening"
   | "stopping"
-  | "review"
   | "error"
   | "unsupported";
 interface RecognitionResult {
@@ -25,6 +24,7 @@ interface Recognition {
   onresult: ((event: RecognitionEvent) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onspeechend: (() => void) | null;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -129,6 +129,7 @@ function releaseRun(run: CaptureRun, abort = true): void {
   recognition.onresult = null;
   recognition.onerror = null;
   recognition.onend = null;
+  recognition.onspeechend = null;
   if (abort) {
     try {
       recognition.abort();
@@ -156,8 +157,7 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
     levels.current = next;
     callbacks.current.onLevels?.(next);
   }, []);
-  const active =
-    status === "starting" || status === "listening" || status === "stopping" || status === "review";
+  const active = status === "starting" || status === "listening" || status === "stopping";
 
   const cancel = useCallback(() => {
     const run = current.current;
@@ -174,12 +174,13 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
       if (!mounted.current || current.current !== run) return;
       const text = transcriptFor(run);
       if (text) {
+        current.current = null;
         releaseRun(run);
-        run.finishing = false;
         updateLevels(SILENCE);
-        setTranscript(text);
+        setTranscript("");
         setError(null);
-        setStatus("review");
+        setStatus("idle");
+        callbacks.current.onConfirm(mergeDictationText(run.originalText, text));
         return;
       }
       current.current = null;
@@ -323,26 +324,24 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
         for (let index = event.resultIndex; index < event.results.length; index++)
           run.segments.set(index, event.results[index][0]?.transcript ?? "");
         setTranscript(transcriptFor(run));
+        if (event.results[event.results.length - 1]?.isFinal) finish();
       };
       recognition.onerror = (event) => {
         if (run.recognition === recognition) fail(run, event.error);
       };
+      recognition.onspeechend = () => {
+        if (current.current !== run || !mounted.current || run.recognition !== recognition) return;
+        finish();
+      };
       recognition.onend = () => {
         if (current.current !== run || !mounted.current || run.recognition !== recognition) return;
-        if (run.finishing) {
-          commit(run);
-          return;
-        }
-        releaseRun(run, false);
-        updateLevels(SILENCE);
-        if (transcriptFor(run)) setStatus("review");
-        else fail(run, "no-speech");
+        commit(run);
       };
       recognition.start();
     } catch (cause) {
       fail(run, cause instanceof Error ? cause.name : "unknown");
     }
-  }, [commit, fail, updateLevels]);
+  }, [commit, fail, finish, updateLevels]);
 
   useEffect(() => {
     callbacks.current.onListeningChange?.(active);

@@ -20,6 +20,7 @@ class FakeRecognition {
   onresult: ((event: ResultEvent) => void) | null = null;
   onerror: ((event: { error: string }) => void) | null = null;
   onend: (() => void) | null = null;
+  onspeechend: (() => void) | null = null;
   start = vi.fn(() => {
     if (FakeRecognition.autoStart) this.onstart?.();
   });
@@ -168,7 +169,7 @@ describe("browser dictation", () => {
     expect(FakeRecognition.instances).toHaveLength(0);
   });
 
-  it("keeps partial speech reviewable after an error and ignores late results", async () => {
+  it("returns partial speech to the editable draft after an error and ignores late results", async () => {
     const confirm = vi.fn();
     const { result } = renderHook(() =>
       useBrowserDictation({ initialText: "초안", onConfirm: confirm })
@@ -178,13 +179,14 @@ describe("browser dictation", () => {
     const lateResult = recognition.onresult;
     act(() => recognition.result(["제주 날씨"]));
     act(() => recognition.onerror?.({ error: "network" }));
-    expect(result.current.status).toBe("review");
-    expect(result.current.transcript).toBe("제주 날씨");
+    expect(result.current.status).toBe("idle");
+    expect(result.current.active).toBe(false);
+    expect(confirm).toHaveBeenCalledExactlyOnceWith("초안 제주 날씨");
     expect(track.stop).toHaveBeenCalledOnce();
     act(() =>
       lateResult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "늦은 변경" } }] })
     );
-    expect(result.current.transcript).toBe("제주 날씨");
+    expect(result.current.transcript).toBe("");
     act(() => result.current.finish());
     expect(confirm).toHaveBeenCalledExactlyOnceWith("초안 제주 날씨");
   });
@@ -219,7 +221,7 @@ describe("browser dictation", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("waits for final results after stop and merges once without duplicating interim text", async () => {
+  it("automatically stops at speech end and waits for the final result before updating the draft once", async () => {
     const confirm = vi.fn();
     const active = vi.fn();
     const { result } = renderHook(() =>
@@ -233,7 +235,8 @@ describe("browser dictation", () => {
     const recognition = FakeRecognition.instances[0];
     act(() => recognition.result(["제주 날"], 0, false));
     act(() => recognition.result(["제주 날씨", "알려"], 0, false));
-    act(() => result.current.finish());
+    act(() => recognition.onspeechend?.());
+    act(() => recognition.onspeechend?.());
     expect(recognition.stop).toHaveBeenCalledOnce();
     expect(track.stop).toHaveBeenCalledOnce();
     expect(FakeAudioContext.instances[0].close).toHaveBeenCalledOnce();
@@ -274,7 +277,7 @@ describe("browser dictation", () => {
     expect(frames.size).toBe(0);
   });
 
-  it("releases capture when recognition ends and waits for explicit confirmation", async () => {
+  it("automatically returns recognized speech to the draft when the browser ends recognition", async () => {
     const confirm = vi.fn();
     const { result } = renderHook(() =>
       useBrowserDictation({ initialText: "기존", onConfirm: confirm })
@@ -285,10 +288,9 @@ describe("browser dictation", () => {
       recognition.result(["문장"]);
       recognition.onend?.();
     });
-    expect(result.current.status).toBe("review");
+    expect(result.current.status).toBe("idle");
+    expect(result.current.active).toBe(false);
     expect(track.stop).toHaveBeenCalledOnce();
-    expect(confirm).not.toHaveBeenCalled();
-    act(() => result.current.finish());
     expect(confirm).toHaveBeenCalledExactlyOnceWith("기존 문장");
   });
 
@@ -414,7 +416,7 @@ describe("browser dictation", () => {
     expect(frames.size).toBe(0);
   });
 
-  it("finishes once even if the recognition vendor never sends its final end event", async () => {
+  it("automatically finishes a final transcript even without speechend or the vendor's end event", async () => {
     vi.useFakeTimers();
     const confirm = vi.fn();
     const { result } = renderHook(() =>
@@ -422,9 +424,12 @@ describe("browser dictation", () => {
     );
     await act(() => result.current.start());
     act(() => FakeRecognition.instances[0].result(["받아쓴 문장"]));
+    expect(result.current.status).toBe("stopping");
+    expect(FakeRecognition.instances[0].stop).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
     act(() => {
-      result.current.finish();
-      result.current.finish();
+      FakeRecognition.instances[0].onspeechend?.();
+      FakeRecognition.instances[0].onspeechend?.();
     });
     act(() => vi.advanceTimersByTime(1500));
     expect(confirm).toHaveBeenCalledExactlyOnceWith("기존 받아쓴 문장");

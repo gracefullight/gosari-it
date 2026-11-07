@@ -1,4 +1,4 @@
-import { CheckIcon, MicrophoneIcon, XIcon } from "@phosphor-icons/react";
+import { MicrophoneIcon, SquareIcon, XIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,9 +64,8 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
   const status = {
     starting: "마이크 연결 중…",
     listening: "듣고 있습니다…",
-    stopping: "받아쓴 내용 확인 중…",
-    review: "받아쓴 내용을 확인해 주세요.",
-  }[dictation.status as "starting" | "listening" | "stopping" | "review"];
+    stopping: "입력하는 중…",
+  }[dictation.status as "starting" | "listening" | "stopping"];
   return (
     <section className="flex w-full min-w-0 flex-1 flex-col gap-2 px-1 py-1" aria-label="음성 입력">
       {dictation.status !== "starting" ? (
@@ -112,12 +111,12 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
             <Button
               type="button"
               className="size-11 rounded-full p-0"
-              aria-label="입력란에 넣기"
-              title="받아쓴 내용을 입력란에 넣기"
-              disabled={dictation.status === "stopping" || !dictation.transcript.trim()}
+              aria-label="음성 입력 마치기"
+              title="음성 입력 마치기"
+              disabled={dictation.status === "stopping"}
               onClick={dictation.finish}
             >
-              <CheckIcon aria-hidden="true" />
+              <SquareIcon aria-hidden="true" weight="fill" />
             </Button>
           ) : null}
         </div>
