@@ -6,6 +6,7 @@ export type DictationStatus =
   | "listening"
   | "stopping"
   | "review"
+  | "preparing"
   | "error"
   | "unsupported";
 interface RecognitionResult {
@@ -17,6 +18,7 @@ interface RecognitionEvent {
   results: { length: number; [index: number]: RecognitionResult };
 }
 interface Recognition {
+  processLocally?: boolean;
   lang: string;
   continuous: boolean;
   interimResults: boolean;
@@ -29,10 +31,20 @@ interface Recognition {
   stop: () => void;
   abort: () => void;
 }
+type LanguageAvailability = "available" | "downloadable" | "downloading" | "unavailable";
+interface RecognitionConstructor {
+  new (): Recognition;
+  available?: (options: {
+    langs: string[];
+    processLocally: boolean;
+  }) => Promise<LanguageAvailability>;
+  install?: (options: { langs: string[]; processLocally: boolean }) => Promise<boolean>;
+}
+const KOREAN_ON_DEVICE = { langs: ["ko-KR"], processLocally: true };
 type VoiceWindow = Window & {
   AudioContext?: typeof AudioContext;
-  SpeechRecognition?: new () => Recognition;
-  webkitSpeechRecognition?: new () => Recognition;
+  SpeechRecognition?: RecognitionConstructor;
+  webkitSpeechRecognition?: RecognitionConstructor;
   webkitAudioContext?: typeof AudioContext;
 };
 interface CaptureRun {
@@ -55,7 +67,7 @@ export interface BrowserDictationOptions {
   onCancel?: () => void;
   onLevels?: (levels: readonly number[]) => void;
 }
-const SILENCE = Array<number>(24).fill(0);
+const SILENCE = Array<number>(64).fill(0);
 const TRAILING_SPACE = /\s$/u;
 const ERROR_MESSAGES: Record<string, string> = {
   "not-allowed": "마이크 사용을 허용해 주세요.",
@@ -66,8 +78,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   NotFoundError: "마이크를 찾을 수 없습니다.",
   NotReadableError: "마이크를 사용할 수 없습니다. 다른 앱의 사용을 확인해 주세요.",
   "no-speech": "말소리를 듣지 못했습니다. 다시 눌러 주세요.",
-  network: "음성 인식 연결이 끊겼습니다. 다시 시도해 주세요.",
+  network: "브라우저 음성 인식에 연결하지 못했습니다.",
+  "start-timeout": "음성 인식이 시작되지 않았습니다. 다시 눌러 주세요.",
   "language-not-supported": "한국어 음성 인식을 사용할 수 없습니다.",
+  "language-preparation": "한국어 음성 인식을 준비하지 못했습니다. 다시 눌러 주세요.",
   aborted: "음성 입력이 중지되었습니다.",
 };
 function capabilities() {
@@ -154,7 +168,11 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
     callbacks.current.onLevels?.(next);
   }, []);
   const active =
-    status === "starting" || status === "listening" || status === "stopping" || status === "review";
+    status === "starting" ||
+    status === "preparing" ||
+    status === "listening" ||
+    status === "stopping" ||
+    status === "review";
 
   const cancel = useCallback(() => {
     const run = current.current;
@@ -169,6 +187,16 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
   const fail = useCallback(
     (run: CaptureRun, code: string) => {
       if (!mounted.current || current.current !== run) return;
+      const text = transcriptFor(run);
+      if (text) {
+        releaseRun(run);
+        run.finishing = false;
+        updateLevels(SILENCE);
+        setTranscript(text);
+        setError(null);
+        setStatus("review");
+        return;
+      }
       current.current = null;
       releaseRun(run);
       updateLevels(SILENCE);
@@ -242,6 +270,42 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
     setTranscript("");
     updateLevels(SILENCE);
     try {
+      let processLocally = false;
+      if (available.recognition.available) {
+        let readiness: LanguageAvailability = "unavailable";
+        try {
+          readiness = await available.recognition.available(KOREAN_ON_DEVICE);
+        } catch {
+          /* Preserve the browser's existing recognition service. */
+        }
+        if (!mounted.current || current.current !== run) return;
+        if (readiness === "downloadable" || readiness === "downloading") {
+          setStatus("preparing");
+          if (!available.recognition.install) {
+            fail(run, "language-preparation");
+            return;
+          }
+          let installed = false;
+          try {
+            installed = await available.recognition.install(KOREAN_ON_DEVICE);
+          } catch {
+            /* Report preparation failure without starting capture. */
+          }
+          if (!mounted.current || current.current !== run) return;
+          if (!installed) {
+            fail(run, "language-preparation");
+            return;
+          }
+          readiness = await available.recognition.available(KOREAN_ON_DEVICE);
+          if (!mounted.current || current.current !== run) return;
+          if (readiness !== "available") {
+            fail(run, "language-preparation");
+            return;
+          }
+        }
+        processLocally = readiness === "available";
+      }
+      setStatus("starting");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video: false,
@@ -295,27 +359,30 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
       run.frame = requestAnimationFrame(sample);
       const recognition = new available.recognition();
       run.recognition = recognition;
+      if (processLocally) recognition.processLocally = true;
       recognition.lang = "ko-KR";
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
       recognition.onstart = () => {
-        if (current.current !== run || !mounted.current) return;
+        if (current.current !== run || !mounted.current || run.recognition !== recognition) return;
         if (run.timer != null) clearTimeout(run.timer);
         run.timer = null;
         setStatus("listening");
       };
       recognition.onresult = (event) => {
-        if (current.current !== run || !mounted.current) return;
+        if (current.current !== run || !mounted.current || run.recognition !== recognition) return;
         for (const index of run.segments.keys())
           if (index >= event.results.length) run.segments.delete(index);
         for (let index = event.resultIndex; index < event.results.length; index++)
           run.segments.set(index, event.results[index][0]?.transcript ?? "");
         setTranscript(transcriptFor(run));
       };
-      recognition.onerror = (event) => fail(run, event.error);
+      recognition.onerror = (event) => {
+        if (run.recognition === recognition) fail(run, event.error);
+      };
       recognition.onend = () => {
-        if (current.current !== run || !mounted.current) return;
+        if (current.current !== run || !mounted.current || run.recognition !== recognition) return;
         if (run.finishing) {
           commit(run);
           return;
@@ -325,7 +392,7 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
         if (transcriptFor(run)) setStatus("review");
         else fail(run, "no-speech");
       };
-      run.timer = setTimeout(() => fail(run, "network"), 12000);
+      run.timer = setTimeout(() => fail(run, "start-timeout"), 12000);
       recognition.start();
     } catch (cause) {
       fail(run, cause instanceof Error ? cause.name : "unknown");
@@ -352,5 +419,15 @@ export function useBrowserDictation(options: BrowserDictationOptions) {
       if (run) releaseRun(run);
     };
   }, [cancel]);
-  return { status, supported, active, transcript, error, levelsRef: levels, start, finish, cancel };
+  return {
+    status,
+    supported,
+    active,
+    transcript,
+    error,
+    levelsRef: levels,
+    start,
+    finish,
+    cancel,
+  };
 }

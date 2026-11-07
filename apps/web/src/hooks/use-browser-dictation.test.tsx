@@ -7,16 +7,22 @@ type ResultEvent = {
   results: { isFinal: boolean; 0: { transcript: string } }[];
 };
 class FakeRecognition {
+  static available: ReturnType<typeof vi.fn> | undefined;
+  static install: ReturnType<typeof vi.fn> | undefined;
+  static autoStart = true;
   static instances: FakeRecognition[] = [];
   lang = "";
   continuous = false;
   interimResults = false;
   maxAlternatives = 0;
+  processLocally = false;
   onstart: (() => void) | null = null;
   onresult: ((event: ResultEvent) => void) | null = null;
   onerror: ((event: { error: string }) => void) | null = null;
   onend: (() => void) | null = null;
-  start = vi.fn(() => this.onstart?.());
+  start = vi.fn(() => {
+    if (FakeRecognition.autoStart) this.onstart?.();
+  });
   stop = vi.fn();
   abort = vi.fn();
   constructor() {
@@ -56,6 +62,9 @@ let nextFrame = 0;
 beforeEach(() => {
   vi.clearAllMocks();
   FakeRecognition.instances = [];
+  FakeRecognition.available = undefined;
+  FakeRecognition.install = undefined;
+  FakeRecognition.autoStart = true;
   FakeAudioContext.instances = [];
   frames = new Map();
   nextFrame = 0;
@@ -89,6 +98,183 @@ function sample(timestamp: number) {
 }
 
 describe("browser dictation", () => {
+  it("one microphone action prepares Korean then starts locally without an extra button", async () => {
+    let resolveInstall!: (value: boolean) => void;
+    FakeRecognition.available = vi
+      .fn()
+      .mockResolvedValueOnce("downloadable")
+      .mockResolvedValue("available");
+    FakeRecognition.install = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInstall = resolve;
+        })
+    );
+    const active = vi.fn();
+    const { result } = renderHook(() =>
+      useBrowserDictation({ initialText: "초안", onConfirm: vi.fn(), onListeningChange: active })
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.start();
+    });
+    expect(result.current.status).toBe("preparing");
+    expect(result.current.active).toBe(true);
+    expect(active).toHaveBeenLastCalledWith(true);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(FakeRecognition.install).toHaveBeenCalledExactlyOnceWith({
+      langs: ["ko-KR"],
+      processLocally: true,
+    });
+    await act(() => result.current.start());
+    expect(FakeRecognition.install).toHaveBeenCalledOnce();
+    await act(async () => {
+      resolveInstall(true);
+      await pending;
+    });
+    expect(FakeRecognition.instances[0].processLocally).toBe(true);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(result.current.status).toBe("listening");
+  });
+
+  it("uses an existing local pack and preserves the browser service when local support is unavailable", async () => {
+    FakeRecognition.available = vi
+      .fn()
+      .mockResolvedValueOnce("available")
+      .mockResolvedValue("unavailable");
+    FakeRecognition.install = vi.fn();
+    const { result } = renderHook(() =>
+      useBrowserDictation({ initialText: "", onConfirm: vi.fn() })
+    );
+    await act(() => result.current.start());
+    expect(FakeRecognition.instances[0].processLocally).toBe(true);
+    act(() => result.current.cancel());
+    await act(() => result.current.start());
+    expect(FakeRecognition.instances[1].processLocally).toBe(false);
+    expect(FakeRecognition.install).not.toHaveBeenCalled();
+  });
+
+  it("invalidates cancelled preparation and prevents a late installation from recording", async () => {
+    let resolveInstall!: (value: boolean) => void;
+    FakeRecognition.available = vi.fn().mockResolvedValue("downloadable");
+    FakeRecognition.install = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInstall = resolve;
+        })
+    );
+    const { result, unmount } = renderHook(() =>
+      useBrowserDictation({ initialText: "초안", onConfirm: vi.fn() })
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.start();
+    });
+    await act(() => result.current.start());
+    expect(FakeRecognition.install).toHaveBeenCalledOnce();
+    act(() => result.current.cancel());
+    await act(async () => {
+      resolveInstall(true);
+      await pending;
+    });
+    expect(result.current.status).toBe("idle");
+    expect(getUserMedia).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("keeps partial speech reviewable after an error and ignores late results", async () => {
+    const confirm = vi.fn();
+    const { result } = renderHook(() =>
+      useBrowserDictation({ initialText: "초안", onConfirm: confirm })
+    );
+    await act(() => result.current.start());
+    const recognition = FakeRecognition.instances[0];
+    const lateResult = recognition.onresult;
+    act(() => recognition.result(["제주 날씨"]));
+    act(() => recognition.onerror?.({ error: "network" }));
+    expect(result.current.status).toBe("review");
+    expect(result.current.transcript).toBe("제주 날씨");
+    expect(track.stop).toHaveBeenCalledOnce();
+    act(() =>
+      lateResult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "늦은 변경" } }] })
+    );
+    expect(result.current.transcript).toBe("제주 날씨");
+    act(() => result.current.finish());
+    expect(confirm).toHaveBeenCalledExactlyOnceWith("초안 제주 날씨");
+  });
+
+  it("ignores installation completion after unmount and records nothing on preparation failure", async () => {
+    let resolveInstall!: (value: boolean) => void;
+    FakeRecognition.available = vi.fn().mockResolvedValue("downloadable");
+    FakeRecognition.install = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInstall = resolve;
+        })
+    );
+    const first = renderHook(() =>
+      useBrowserDictation({ initialText: "초안", onConfirm: vi.fn() })
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = first.result.current.start();
+    });
+    first.unmount();
+    await act(async () => {
+      resolveInstall(true);
+      await pending;
+    });
+    expect(getUserMedia).not.toHaveBeenCalled();
+    FakeRecognition.install = vi.fn().mockResolvedValue(false);
+    const second = renderHook(() =>
+      useBrowserDictation({ initialText: "초안", onConfirm: vi.fn() })
+    );
+    await act(() => second.result.current.start());
+    expect(second.result.current.status).toBe("error");
+    expect(second.result.current.error).toContain("준비하지 못했습니다");
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("waits for a browser-managed existing download and then starts automatically", async () => {
+    let resolveInstall!: (value: boolean) => void;
+    FakeRecognition.available = vi
+      .fn()
+      .mockResolvedValueOnce("downloading")
+      .mockResolvedValue("available");
+    FakeRecognition.install = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveInstall = resolve;
+        })
+    );
+    const { result } = renderHook(() =>
+      useBrowserDictation({ initialText: "", onConfirm: vi.fn() })
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.start();
+    });
+    expect(result.current.status).toBe("preparing");
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveInstall(true);
+      await pending;
+    });
+    expect(result.current.status).toBe("listening");
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("distinguishes startup timeouts from native network errors", async () => {
+    vi.useFakeTimers();
+    FakeRecognition.autoStart = false;
+    const { result } = renderHook(() =>
+      useBrowserDictation({ initialText: "", onConfirm: vi.fn() })
+    );
+    await act(() => result.current.start());
+    act(() => vi.advanceTimersByTime(12000));
+    expect(result.current.error).toBe("음성 인식이 시작되지 않았습니다. 다시 눌러 주세요.");
+    expect(track.stop).toHaveBeenCalledOnce();
+  });
   it("uses Korean continuous/interim recognition and measured microphone samples", async () => {
     const confirm = vi.fn();
     const renders = vi.fn();
@@ -195,7 +381,7 @@ describe("browser dictation", () => {
   it.each([
     ["not-allowed", "마이크 사용을 허용해 주세요."],
     ["no-speech", "말소리를 듣지 못했습니다. 다시 눌러 주세요."],
-    ["network", "음성 인식 연결이 끊겼습니다. 다시 시도해 주세요."],
+    ["network", "브라우저 음성 인식에 연결하지 못했습니다."],
   ])("cleans up and reports %s accurately", async (code, message) => {
     const confirm = vi.fn();
     const { result } = renderHook(() =>

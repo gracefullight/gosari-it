@@ -26,7 +26,7 @@ from gosari.agent.public_planner import (
 )
 from gosari.cache.semantic import canonical_public_spec, lookup, store
 from gosari.config import Settings, get_settings
-from gosari.domain import CacheResolution, JobStage
+from gosari.domain import CacheResolution, DataStatus, JobStage
 from gosari.domain.envelope import PersonalSearchSelection, ProgressEvent, ResultEnvelope, UiSpec
 from gosari.domain.errors import GosariError
 from gosari.logging import get_logger
@@ -880,7 +880,9 @@ class Coordinator:
             job.stage = JobStage.CANCELLED if job.cancelled else JobStage.FAILED
             job.error = None if job.cancelled else exc.code
             if last_result is not None:
-                job.result = last_result.model_copy(update={"data_status": "partial"}, deep=True)
+                job.result = last_result.model_copy(
+                    update={"data_status": DataStatus.PARTIAL}, deep=True
+                )
             job.emit(
                 "cancelled" if job.cancelled else "failed",
                 "취소되었습니다." if job.cancelled else exc.safe_message,

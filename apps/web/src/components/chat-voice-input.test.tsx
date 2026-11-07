@@ -12,6 +12,7 @@ const voice = vi.hoisted(() => ({
     start: vi.fn(),
     finish: vi.fn(),
     cancel: vi.fn(),
+    prepare: vi.fn(),
   },
   paint: undefined as ((levels: readonly number[]) => void) | undefined,
 }));
@@ -35,6 +36,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("chat voice control", () => {
+  it("shows preparation status and cancellation without extra preparation controls", () => {
+    Object.assign(voice.state, { status: "preparing", active: true });
+    render(<ChatVoiceInput initialText="초안" onConfirm={vi.fn()} />);
+    expect(screen.getByRole("status").textContent).toBe("한국어 음성 인식 준비 중…");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "상태 확인" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "음성 입력 시작" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "음성 입력 취소" }));
+    expect(voice.state.cancel).toHaveBeenCalledOnce();
+  });
   it("starts only on the microphone control and never confirms text automatically", () => {
     const confirm = vi.fn();
     render(<ChatVoiceInput initialText="내 초안" onConfirm={confirm} />);
@@ -48,10 +59,15 @@ describe("chat voice control", () => {
     Object.assign(voice.state, { status: "listening", active: true, transcript: "제주 날씨" });
     const { container } = render(<ChatVoiceInput initialText="내 초안" onConfirm={vi.fn()} />);
     const bar = container.querySelector("rect");
+    expect(container.querySelectorAll("rect")).toHaveLength(64);
+    const wave = container.querySelector("svg");
+    expect(wave?.getAttribute("preserveAspectRatio")).toBe("none");
+    expect(wave?.classList.contains("w-full")).toBe(true);
+    expect(wave?.parentElement?.firstElementChild).toBe(wave);
     expect(bar?.getAttribute("height")).toBe("2");
-    act(() => voice.paint?.(Array<number>(24).fill(0.5)));
+    act(() => voice.paint?.(Array<number>(64).fill(0.5)));
     expect(bar?.getAttribute("height")).toBe("18");
-    act(() => voice.paint?.(Array<number>(24).fill(0)));
+    act(() => voice.paint?.(Array<number>(64).fill(0)));
     expect(bar?.getAttribute("height")).toBe("2");
     expect(screen.getByRole("status").textContent).toBe("듣고 있습니다…");
     fireEvent.click(screen.getByRole("button", { name: "입력란에 넣기" }));

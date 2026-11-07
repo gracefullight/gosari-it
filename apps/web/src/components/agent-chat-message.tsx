@@ -22,6 +22,13 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 const MARKET_LABELS: Record<string, string> = { "110001": "서울가락", "210001": "부산엄궁" };
 const TOOL_STATUS = { running: "진행 중", completed: "완료", failed: "실패" };
+const INTERNAL_ERROR_CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+
+function readableError(error: string): string {
+  return INTERNAL_ERROR_CODE.test(error)
+    ? "답변을 마무리하지 못했습니다. 다시 요청해 주세요."
+    : error;
+}
 
 function publicConditions(tool: AgentToolCall): [string, string][] {
   const value = tool.conditions ?? {};
@@ -227,7 +234,7 @@ export function AgentChatMessage({ message }: { message: ChatMessage }) {
           {hasText ? <AssistantMarkdown text={message.text!} /> : null}
           {message.error ? (
             <p role="alert" className="text-base text-destructive">
-              {message.error}
+              {readableError(message.error)}
             </p>
           ) : null}
           {showThinking ? <ChatThinkingIndicator /> : null}

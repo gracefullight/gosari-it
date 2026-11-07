@@ -22,6 +22,25 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
   };
 }
 
+it("shows a useful failure message instead of internal budget codes without replacing model text", () => {
+  const view = render(
+    <AgentChatMessage
+      message={message({
+        text: "조회한 한라산남벽 자료입니다.",
+        error: "BUDGET_EXCEEDED",
+        stream: { ...emptyAgentState(), status: "failed" },
+      })}
+    />
+  );
+  expect(screen.getByText("조회한 한라산남벽 자료입니다.")).toBeTruthy();
+  expect(screen.getByRole("alert").textContent).toBe(
+    "답변을 마무리하지 못했습니다. 다시 요청해 주세요."
+  );
+  expect(screen.queryByText("BUDGET_EXCEEDED")).toBeNull();
+  view.rerender(<AgentChatMessage message={message({ error: "연결을 확인해 주세요." })} />);
+  expect(screen.getByRole("alert").textContent).toBe("연결을 확인해 주세요.");
+});
+
 it("shows dots only before assistant text and real tool activity begin", () => {
   const view = render(<AgentChatMessage message={message()} />);
   expect(screen.getByRole("status").textContent).toContain("답변 작성 중");

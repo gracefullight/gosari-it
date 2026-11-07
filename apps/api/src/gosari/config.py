@@ -1,4 +1,4 @@
-"""SRS §16.2 설정 계약. 비밀은 *_FILE 우선, 값은 로그/응답에 노출하지 않는다."""
+"""설정 계약. OpenAI는 명시한 환경변수를 우선하며 비밀값은 노출하지 않는다."""
 
 from functools import lru_cache
 from pathlib import Path
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
     # 예산
     source_daily_budget: int = 2000
-    model_job_token_budget: int = 16000
+    model_job_token_budget: int = 64000
     spend_warning: int = 0
 
     # 로그
@@ -109,7 +109,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_openai_api_key(self) -> str | None:
-        return read_secret_file(self.openai_api_key_file) or self.openai_api_key
+        return (self.openai_api_key or "").strip() or read_secret_file(self.openai_api_key_file)
 
     @property
     def db_dsn(self) -> str:

@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { type BrowserDictationOptions, useBrowserDictation } from "@/hooks/use-browser-dictation";
 
 export type ChatVoiceInputProps = Omit<BrowserDictationOptions, "onLevels">;
-const WAVEFORM_BARS = Array.from({ length: 24 }, (_, index) => ({
+const WAVEFORM_BARS = Array.from({ length: 64 }, (_, index) => ({
   id: `audio-bar-${index}`,
   index,
 }));
@@ -62,38 +62,40 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
       </div>
     );
   const status = {
+    preparing: "한국어 음성 인식 준비 중…",
     starting: "마이크 연결 중…",
     listening: "듣고 있습니다…",
     stopping: "받아쓴 내용 확인 중…",
     review: "받아쓴 내용을 확인해 주세요.",
-  }[dictation.status as "starting" | "listening" | "stopping" | "review"];
+  }[dictation.status as "preparing" | "starting" | "listening" | "stopping" | "review"];
   return (
-    <section className="flex min-w-0 flex-1 flex-col gap-1 px-1 py-1" aria-label="음성 입력">
+    <section className="flex w-full min-w-0 flex-1 flex-col gap-2 px-1 py-1" aria-label="음성 입력">
+      {dictation.status !== "preparing" && dictation.status !== "starting" ? (
+        <svg
+          ref={waveform}
+          viewBox="0 0 640 40"
+          preserveAspectRatio="none"
+          className="h-10 w-full text-primary"
+          aria-hidden="true"
+        >
+          {WAVEFORM_BARS.map((bar) => (
+            <rect
+              key={bar.id}
+              x={bar.index * 10 + 2}
+              y={19}
+              width={6}
+              height={2}
+              rx={3}
+              fill="currentColor"
+            />
+          ))}
+        </svg>
+      ) : null}
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p role="status" className="truncate text-base leading-6 text-muted-foreground">
+          <p role="status" className="text-base leading-6 text-muted-foreground">
             {status}
           </p>
-          <svg
-            ref={waveform}
-            viewBox="0 0 240 40"
-            className="h-4 w-full text-primary"
-            aria-hidden="true"
-          >
-            {WAVEFORM_BARS.map((bar) => {
-              return (
-                <rect
-                  key={bar.id}
-                  x={bar.index * 10 + 2}
-                  y={19}
-                  width={6}
-                  height={2}
-                  rx={3}
-                  fill="currentColor"
-                />
-              );
-            })}
-          </svg>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button
@@ -107,20 +109,22 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
           >
             <XIcon aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            className="size-11 rounded-full p-0"
-            aria-label="입력란에 넣기"
-            title="받아쓴 내용을 입력란에 넣기"
-            disabled={
-              dictation.status === "starting" ||
-              dictation.status === "stopping" ||
-              !dictation.transcript.trim()
-            }
-            onClick={dictation.finish}
-          >
-            <CheckIcon aria-hidden="true" />
-          </Button>
+          {dictation.status !== "preparing" && dictation.status !== "starting" ? (
+            <Button
+              type="button"
+              className="size-11 rounded-full p-0"
+              aria-label="입력란에 넣기"
+              title="받아쓴 내용을 입력란에 넣기"
+              disabled={
+                dictation.status === "starting" ||
+                dictation.status === "stopping" ||
+                !dictation.transcript.trim()
+              }
+              onClick={dictation.finish}
+            >
+              <CheckIcon aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
       </div>
       {dictation.transcript ? (
