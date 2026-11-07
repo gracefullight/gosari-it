@@ -2,7 +2,7 @@ import { PlusIcon, UserCircleIcon, UsersThreeIcon } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import { DatePickerField } from "@/components/date-picker-field";
-import { PublicEvidenceLinks } from "@/components/public-evidence-links";
+import { ShareActivityItem, type SharingActivity } from "@/components/share-activity-item";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,13 +38,6 @@ const RELATIONSHIPS: PersonalContact["relationship"][] = [
   "기타",
 ];
 const LEGACY_ID = "previous-sharing";
-interface SharingActivity {
-  key: string;
-  item: ShareItem;
-  recordedAt: string;
-  draft: ShareDraft;
-  index: number;
-}
 
 function today(): string {
   const now = new Date();
@@ -545,90 +538,16 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                 <p className="py-8 text-base text-muted-foreground">아직 나눔 기록이 없습니다.</p>
               ) : (
                 <ol className="space-y-0">
-                  {timeline.map((activity) => {
-                    const { key, item, recordedAt, draft } = activity;
-                    return (
-                      <li
-                        key={key}
-                        className="relative ml-1 border-l border-border pb-6 pl-6 last:pb-1"
-                      >
-                        <span
-                          className={`absolute top-1 -left-1.5 size-3 rounded-full border-2 border-card ${item.status === "delivered" ? "bg-primary" : "bg-muted-foreground"}`}
-                        />
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <p className="font-medium tabular-nums">
-                            {item.recipient_alias}{" "}
-                            <span className="ml-2">
-                              {Number(item.amount_value).toLocaleString()}
-                              {item.amount_unit}
-                            </span>
-                          </p>
-                          <span className="text-base text-muted-foreground">
-                            {item.status === "delivered" ? "전달 완료" : "전달 예정"}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-base tabular-nums text-muted-foreground">
-                          {item.occurred_on || item.planned_delivery
-                            ? formatDisplayDate(item.occurred_on ?? item.planned_delivery)
-                            : `등록 ${formatDisplayDate(recordedAt)}`}
-                        </p>
-                        {draft.source_record_ids.length ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {draft.source_record_ids.map((id) => {
-                              const entry = notebooks.find((record) => record.record_id === id);
-                              return entry ? (
-                                <a
-                                  key={id}
-                                  href={`/notebook/${encodeURIComponent(id)}/edit`}
-                                  className="inline-flex min-h-11 items-center text-base text-primary underline underline-offset-4"
-                                >
-                                  수첩 · {formatDisplayDate(entry.experience_date)}
-                                </a>
-                              ) : (
-                                <span key={id} className="text-base text-muted-foreground">
-                                  연결된 이전 수첩 기록
-                                </span>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                        <PublicEvidenceLinks ids={draft.public_evidence_ids} />
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {item.status !== "delivered" ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={busy}
-                              onClick={() => editActivity(activity, true)}
-                            >
-                              전달 완료로 변경
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => editActivity(activity)}
-                          >
-                            기록 수정
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => void deleteActivity(activity)}
-                          >
-                            기록 삭제
-                          </Button>
-                        </div>
-                        {item.optional_role_note ? (
-                          <p className="mt-2 text-base text-muted-foreground">
-                            {item.optional_role_note}
-                          </p>
-                        ) : null}
-                      </li>
-                    );
-                  })}
+                  {timeline.map((activity) => (
+                    <ShareActivityItem
+                      key={activity.key}
+                      activity={activity}
+                      notebooks={notebooks}
+                      busy={busy}
+                      onEdit={editActivity}
+                      onDelete={deleteActivity}
+                    />
+                  ))}
                 </ol>
               )}
               {selectedContact ? (
