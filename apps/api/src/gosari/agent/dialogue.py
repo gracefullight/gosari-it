@@ -141,6 +141,10 @@ class StreetViewArgs(Args):
     location_id: str = Field(description="공개 카탈로그의 지역 ID 또는 관측 지점 ID·이름")
 
 
+class LandOwnershipArgs(Args):
+    location_id: str = Field(description="소유 구분을 확인할 공개 카탈로그 지점 ID·이름")
+
+
 LINK_TOOLS = {"open_street_view": StreetViewArgs}
 LINK_LABELS = {"open_street_view": "거리뷰 링크 만들기"}
 PRIVATE_TOOLS = {
@@ -160,6 +164,7 @@ ARG_MODELS: dict[str, type[Args]] = {
     "market_query": MarketArgs,
     "survey_link": SurveyArgs,
     "retail_lookup": RetailArgs,
+    "land_ownership": LandOwnershipArgs,
 }
 SOURCES = {
     "current_observation": ["kma_aws"],
@@ -171,6 +176,7 @@ SOURCES = {
     "market_query": ["at_settlement"],
     "survey_link": ["forestinfo"],
     "retail_lookup": ["retail_sample"],
+    "land_ownership": ["vworld_cadastral", "vworld_ownership"],
 }
 
 
@@ -341,6 +347,8 @@ def public_spec_for_tool(name: str, arguments: Any) -> dict[str, Any]:
                 "INVALID_INPUT", {"fields": ["settlement_date", "settlement_date_end"]}
             )
         spec.update(args, price_channel="wholesale", settlement_date_end=end.isoformat())
+    elif name == "land_ownership":
+        spec["location_id"] = resolve_public_place(args["location_id"])[0]
     elif name == "retail_lookup":
         providers = args.pop("providers", [])
         spec["source_ids"] += list(dict.fromkeys(providers))
@@ -468,6 +476,8 @@ def _compact_tool(
     output: ResultEnvelope, name: str, spec: dict[str, Any], facts: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
     compact = compact_result(output, facts)
+    if name == "land_ownership":
+        compact["land_ownership"] = output.result.get("land_ownership", {})
 
     def add(
         value: Any, label: str, unit: str, as_of: str = "", anchors: list[str] | None = None

@@ -418,10 +418,12 @@ class Coordinator:
                 cached_source = get_source_result(public)
                 if cached_source is not None:
                     cached_source = {**cached_source, "request_id": job.request_id}
-                    return ResultEnvelope.model_validate(cached_source)
+                    job.result = ResultEnvelope.model_validate(cached_source)
+                    return job.result
                 output = AnalysisEngine(self.settings, checkpoint=checkpoint).run(
                     public, job.request_id
                 )
+                job.result = output
                 checkpoint()
                 put_source_result(public, output, ttl_seconds=300)
                 return output
@@ -728,10 +730,12 @@ class Coordinator:
                 cached = get_source_result(public)
                 if cached is not None:
                     result = ResultEnvelope.model_validate({**cached, "request_id": job.request_id})
+                    last_result = result
                 else:
                     result = AnalysisEngine(self.settings, checkpoint=checkpoint).run(
                         public, job.request_id
                     )
+                    last_result = result
                     checkpoint()
                     put_source_result(public, result, ttl_seconds=300)
             last_result = result
@@ -883,6 +887,16 @@ class Coordinator:
                 job.result = last_result.model_copy(
                     update={"data_status": DataStatus.PARTIAL}, deep=True
                 )
+            elif exc.extra.get("fetched_scope"):
+                completed = exc.extra["fetched_scope"]
+                job.result = ResultEnvelope(
+                    request_id=job.request_id,
+                    data_status=DataStatus.PARTIAL,
+                    source_mode="fetched",
+                    effective_scope={"completed_units": completed},
+                    result={"completed_scope": completed, "cancelled": job.cancelled},
+                )
+                job.emit("scope_retained", "확인한 범위를 보관했습니다.", len(completed))
             job.emit(
                 "cancelled" if job.cancelled else "failed",
                 "취소되었습니다." if job.cancelled else exc.safe_message,
@@ -1035,6 +1049,10 @@ class Coordinator:
                     result={"completed_scope": fetched_scope, "cancelled": job.cancelled},
                 )
                 job.emit("scope_retained", "확인한 범위를 보관했습니다.", len(fetched_scope))
+            elif job.result is not None:
+                job.result = job.result.model_copy(
+                    update={"data_status": DataStatus.PARTIAL}, deep=True
+                )
             job.emit(
                 "cancelled" if job.cancelled else "failed",
                 "취소되었습니다." if job.cancelled else exc.safe_message,

@@ -28,6 +28,7 @@ ALLOWED_DOMAINS = frozenset(
         "api.openai.com",
         "api.open-meteo.com",
         "archive-api.open-meteo.com",
+        "api.vworld.kr",
     }
 )
 

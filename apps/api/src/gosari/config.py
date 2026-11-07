@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     kma_service_key: str | None = None
     kma_hub_key: str | None = None
     at_service_key: str | None = None
+    vworld_api_key: str | None = None
+    vworld_api_key_file: str | None = None
+    vworld_domain: str | None = None
 
     # 캐시
     response_cache_enabled: bool = True
@@ -102,6 +105,10 @@ class Settings(BaseSettings):
 
     # 재생 픽스처 경로 (컨테이너에서는 /app/fixtures로 주입)
     fixtures_dir: str = ""
+
+    @property
+    def resolved_vworld_api_key(self) -> str | None:
+        return (self.vworld_api_key or "").strip() or read_secret_file(self.vworld_api_key_file)
 
     @property
     def resolved_db_password(self) -> str | None:

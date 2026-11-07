@@ -101,6 +101,27 @@ def test_terminal_job_retention_is_bounded(monkeypatch):
 def test_cancel_retains_actual_completed_dates_and_stops_later_dates(monkeypatch):
     settings = Settings(external_requests_enabled=True)
     coordinator = Coordinator(settings)
+
+    class Model:
+        available = True
+
+        def begin_job(self):
+            pass
+
+        def stream_turn(self, *args, **kwargs):
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "cancel-history",
+                        "type": "function",
+                        "function": {"name": "history_compare", "arguments": "{}"},
+                    }
+                ],
+            }
+
+    coordinator.llm = Model()
     session = Session(settings)
     called = []
 
@@ -119,6 +140,7 @@ def test_cancel_retains_actual_completed_dates_and_stops_later_dates(monkeypatch
         "gosari.agent.coordinator.lookup", lambda *a, **k: (CacheResolution.BYPASS, None)
     )
     monkeypatch.setattr("gosari.sources.live.JejuHubAdapter.daily_weather", day)
+    monkeypatch.setattr("gosari.cache.public_source.get_source_result", lambda spec: None)
     job = coordinator.run_job(
         session,
         {
@@ -360,3 +382,134 @@ def test_forecast_required_value_blocks_cache_but_optional_issue_time_does_not(v
         "result": {"forecast": [{"category": "TMP", "value": value, "published_at": None}]},
     }
     assert result_cacheable(answer) is expected
+
+
+def test_cancel_after_engine_return_preserves_actual_result_before_post_fetch_checkpoint(
+    monkeypatch,
+):
+    coordinator = Coordinator(Settings(external_requests_enabled=True))
+    session = Session(coordinator.settings)
+    model_calls = []
+    source_calls = []
+
+    class Model:
+        available = True
+
+        def begin_job(self):
+            pass
+
+        def stream_turn(self, *args, **kwargs):
+            model_calls.append(1)
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "current-observation",
+                        "type": "function",
+                        "function": {"name": "current_observation", "arguments": "{}"},
+                    }
+                ],
+            }
+
+    coordinator.llm = Model()
+    monkeypatch.setattr(
+        "gosari.agent.coordinator.lookup", lambda *args, **kwargs: (CacheResolution.BYPASS, None)
+    )
+    monkeypatch.setattr("gosari.cache.public_source.get_source_result", lambda spec: None)
+    monkeypatch.setattr(
+        "gosari.cache.public_source.put_source_result",
+        lambda *args, **kwargs: pytest.fail("cancelled result entered cache"),
+    )
+
+    def engine_run(engine, spec, request_id):
+        source_calls.append(spec["operation"])
+        next(iter(coordinator._jobs.values())).cancelled = True
+        return ResultEnvelope(
+            request_id=request_id,
+            data_status="complete",
+            source_mode="fetched",
+            result={"actual_source_value": 15.7},
+        )
+
+    monkeypatch.setattr("gosari.agent.analysis.AnalysisEngine.run", engine_run)
+    job = coordinator.run_job(session, SPEC)
+    assert job.stage.value == "cancelled" and job.result.data_status == "partial"
+    assert job.result.result == {"actual_source_value": 15.7}
+    assert source_calls == ["current_observation"] and len(model_calls) == 1
+    assert job.assistant_text == ""
+
+
+@pytest.mark.parametrize("cancel_at", ["first_date", "engine_return"])
+def test_chat_dialogue_cancel_retains_actual_source_dates_or_returned_result(
+    monkeypatch, cancel_at
+):
+    coordinator = Coordinator(Settings(external_requests_enabled=True))
+    session = Session(coordinator.settings)
+    job, _ = coordinator._new_job(session, SPEC)
+    job.dialogue_messages = [{"role": "user", "content": "선흘 과거 날씨를 비교해줘"}]
+    calls = []
+
+    class Model:
+        def begin_job(self):
+            pass
+
+        def stream_turn(self, *args, **kwargs):
+            calls.append(1)
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "history",
+                        "type": "function",
+                        "function": {
+                            "name": "history_compare",
+                            "arguments": (
+                                '{"station_name":"선흘","years":[2023,2024],'
+                                '"month_day_start":"04-11","month_day_end":"04-12"}'
+                            ),
+                        },
+                    }
+                ],
+            }
+
+    coordinator.llm = Model()
+    monkeypatch.setattr("gosari.cache.dialogue_plan.read_plan", lambda *args, **kwargs: None)
+    monkeypatch.setattr("gosari.cache.public_source.get_source_result", lambda spec: None)
+    monkeypatch.setattr(
+        "gosari.cache.public_source.put_source_result",
+        lambda *args, **kwargs: pytest.fail("cancelled source cached"),
+    )
+    days = []
+
+    def first_day(adapter, selected, name):
+        days.append(selected.isoformat())
+        job.cancelled = True
+        return [], SourceManifest(
+            source_id="jeju_579",
+            dataset_id="579",
+            operation="daily_weather",
+            sanitized_parameters={},
+            returned_count=0,
+        )
+
+    monkeypatch.setattr("gosari.sources.live.JejuHubAdapter.daily_weather", first_day)
+    if cancel_at == "engine_return":
+
+        def engine_run(engine, spec, request_id):
+            job.cancelled = True
+            return ResultEnvelope(
+                request_id=request_id, data_status="complete", result={"actual_source_value": 15.7}
+            )
+
+        monkeypatch.setattr("gosari.agent.analysis.AnalysisEngine.run", engine_run)
+    coordinator._execute_dialogue_job(session, job)
+    assert (
+        job.stage.value == "cancelled" and job.result.data_status == "partial" and len(calls) == 1
+    )
+    if cancel_at == "first_date":
+        assert days == ["2023-04-11"]
+        assert job.result.result["completed_scope"][0]["date"] == "2023-04-11"
+    else:
+        assert job.result.result == {"actual_source_value": 15.7}

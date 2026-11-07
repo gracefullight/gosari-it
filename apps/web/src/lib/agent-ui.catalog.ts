@@ -67,6 +67,10 @@ export const agentUICatalog = defineCatalog(schema, {
       description: "나들이 순위·날씨와 편집 가능한 준비 목록입니다.",
     },
     StationResults: { props: resultProps, description: "공개 관측소 목록과 검색을 표시합니다." },
+    LandOwnershipResults: {
+      props: resultProps,
+      description: "공식 토지 소유 구분과 기준월을 표시합니다.",
+    },
     FollowupActions: {
       props: followupProps,
       description: "결과 조건 변경·비교·기록 작업을 제공합니다.",
@@ -101,6 +105,7 @@ const viewTypes = [
   "WeatherComparison",
   "OutingResults",
   "StationResults",
+  "LandOwnershipResults",
 ] as const;
 const resultNode = z.strictObject({
   type: z.enum(viewTypes),

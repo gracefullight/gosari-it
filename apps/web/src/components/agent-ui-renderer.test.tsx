@@ -101,6 +101,37 @@ function conditionSpec(type: string) {
 }
 
 describe("agent JSON renderer", () => {
+  it("renders a registered ownership result from the tool reference and rejects model-authored ownership props", () => {
+    const owned = envelope(
+      {
+        land_ownership: {
+          location_name: "선흘",
+          ownership_class: "private",
+          is_private: true,
+          owner_type_name: "개인",
+          reference_month: "202610",
+          source_url: "https://www.vworld.kr/",
+        },
+      },
+      { operation: "land_ownership" }
+    );
+    const spec = resultSpec("LandOwnershipResults", []);
+    render(<AgentGeneratedUI spec={spec} results={{ result_1: owned }} onAction={vi.fn()} />);
+    expect(screen.getByText("사유지")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "선흘" })).toBeTruthy();
+    const fabricated = {
+      ...spec,
+      elements: {
+        ...spec.elements,
+        result: {
+          type: "LandOwnershipResults",
+          props: { resultRef: "result_1", ownership_class: "public" },
+          children: [],
+        },
+      },
+    };
+    expect(parseAgentUISpec(fabricated, { result_1: owned })).toBeNull();
+  });
   it("renders only bound public values and dispatches named followup actions", async () => {
     const action = vi.fn();
     render(

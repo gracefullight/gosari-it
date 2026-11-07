@@ -62,10 +62,16 @@ class AnalysisEngine:
             "survey_link": self._survey_link,
             "retail_lookup": self._retail_lookup,
             "station_search": self._station_search,
+            "land_ownership": self._land_ownership,
         }.get(operation)
         if handler is None:
             raise GosariError("INVALID_INPUT", {"fields": ["operation"]})
         return handler(spec, request_id)
+
+    def _land_ownership(self, spec: dict[str, Any], request_id: str) -> ResultEnvelope:
+        from gosari.sources.land_ownership import query_land_ownership
+
+        return query_land_ownership(spec, request_id, self.settings, self.checkpoint)
 
     def _observations_for(
         self, spec: dict[str, Any]

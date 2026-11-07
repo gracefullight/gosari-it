@@ -14,9 +14,9 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=ROOT).decode().split("\0")
 
 
-def run(args, cwd=ROOT):
+def run(args, cwd=ROOT, *, env=None):
     print("[changed]", " ".join(map(str, args)), flush=True)
-    subprocess.run(list(map(str, args)), cwd=cwd, check=True)
+    subprocess.run(list(map(str, args)), cwd=cwd, env=env, check=True)
 
 
 def api_tests(paths):
@@ -100,8 +100,16 @@ def main():
                 raise SystemExit(
                     "No related API tests identified; select focused tests explicitly instead of running all tests."
                 )
-            os.environ["PYTHONPATH"] = str(ROOT / "apps/api/src")
-            run([ROOT / ".venv/bin/python", "-m", "pytest", *tests, "-q"])
+            test_environment = {
+                **os.environ,
+                "PYTHONPATH": str(ROOT / "apps/api/src"),
+                "OPENAI_API_KEY": "",
+                "OPENAI_API_KEY_FILE": "",
+            }
+            run(
+                [ROOT / ".venv/bin/python", "-m", "pytest", *tests, "-q"],
+                env=test_environment,
+            )
         else:
             print("[changed] api: no changed Python paths; no tests run.")
     elif kind == "web":

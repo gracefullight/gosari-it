@@ -19,9 +19,15 @@ Operation = Literal[
     "market_query",
     "survey_link",
     "retail_lookup",
+    "land_ownership",
 ]
 Component = Literal[
-    "PriceResults", "WeatherMap", "WeatherComparison", "OutingResults", "StationResults"
+    "PriceResults",
+    "WeatherMap",
+    "WeatherComparison",
+    "OutingResults",
+    "StationResults",
+    "LandOwnershipResults",
 ]
 Action = Literal[
     "adjust_conditions",
@@ -41,6 +47,7 @@ COMPONENTS: dict[str, tuple[Component, ...]] = {
     "market_query": ("PriceResults",),
     "survey_link": ("PriceResults",),
     "retail_lookup": ("PriceResults",),
+    "land_ownership": ("LandOwnershipResults",),
 }
 ACTION_LABELS = {
     "adjust_conditions": "조건 바꾸기",
@@ -100,6 +107,8 @@ def selection_schema() -> dict[str, Any]:
 
 
 def _allowed_action(action: str, operation: str) -> bool:
+    if operation == "land_ownership":
+        return action == "save_to_notebook"
     if action in ("adjust_conditions", "save_to_notebook"):
         return True
     if action in ("show_price_table", "compare_packages"):

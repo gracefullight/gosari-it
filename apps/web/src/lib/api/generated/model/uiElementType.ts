@@ -15,5 +15,6 @@ export const UiElementType = {
   WeatherComparison: 'WeatherComparison',
   OutingResults: 'OutingResults',
   StationResults: 'StationResults',
+  LandOwnershipResults: 'LandOwnershipResults',
   FollowupActions: 'FollowupActions',
 } as const;

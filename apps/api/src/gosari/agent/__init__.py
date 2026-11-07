@@ -92,6 +92,8 @@ ALLOWED_FIELDS = frozenset(
         "settlement_date",
         "settlement_date_end",
         "package_code",
+        "location_id",
+        "land_point",
     }
 )
 
@@ -106,6 +108,7 @@ ALLOWED_OPERATIONS = frozenset(
         "survey_link",
         "retail_lookup",
         "station_search",
+        "land_ownership",
     }
 )
 
@@ -159,10 +162,21 @@ def build_public_spec(payload: dict[str, Any]) -> dict[str, Any]:
         "retail_sample",
         "tamnao",
         "oasis",
+        "vworld_cadastral",
+        "vworld_ownership",
     }
     sources = spec.get("source_ids", [])
     if not isinstance(sources, list) or any(source not in allowed_sources for source in sources):
         raise GosariError("INVALID_INPUT", {"fields": ["source_ids"]})
+    if operation == "land_ownership":
+        from gosari.sources.locations import resolve_public_place
+
+        place = resolve_public_place(str(spec.get("location_id") or ""))
+        spec["location_id"] = place[0]
+        spec["land_point"] = {"latitude": place[2], "longitude": place[3]}
+        spec["source_ids"] = ["vworld_cadastral", "vworld_ownership"]
+    elif "location_id" in spec or "land_point" in spec:
+        raise GosariError("UNKNOWN_FIELD", {"fields": ["location_id", "land_point"]})
     if "candidates" in spec:
         from datetime import date
 

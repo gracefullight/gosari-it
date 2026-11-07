@@ -41,11 +41,30 @@ const DETAIL_METADATA_FIELDS = new Set([
 
 export function hasDetailedResult(envelope?: ResultEnvelope | null): envelope is ResultEnvelope {
   if (!envelope) return false;
+  if (
+    "land_ownership" in envelope.result ||
+    envelope.requested_scope?.operation === "land_ownership"
+  )
+    return hasLandOwnershipData(envelope);
   return Object.entries(envelope.result).some(
     ([key, value]) =>
       !DETAIL_METADATA_FIELDS.has(key) &&
       key !== "count" &&
       !key.endsWith("_count") &&
       hasValue(value)
+  );
+}
+
+export function hasLandOwnershipData(envelope?: ResultEnvelope | null): boolean {
+  if (!envelope || envelope.data_status === "no_data" || envelope.data_status === "unavailable")
+    return false;
+  const land = envelope.result.land_ownership;
+  if (!land || typeof land !== "object" || Array.isArray(land)) return false;
+  const row = land as Record<string, unknown>;
+  return (
+    row.ownership_class === "private" ||
+    row.ownership_class === "public" ||
+    typeof row.is_private === "boolean" ||
+    (typeof row.owner_type_name === "string" && Boolean(row.owner_type_name.trim()))
   );
 }

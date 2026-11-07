@@ -21,6 +21,7 @@ import {
 import { AnalysisConditionFields } from "@/components/analysis-condition-form";
 import { InlineOutingConditionForm } from "@/components/inline-outing-condition-form";
 import { InlinePriceConditionForm } from "@/components/inline-price-condition-form";
+import { LandOwnershipResults } from "@/components/land-ownership-results";
 import { Button } from "@/components/ui/button";
 import {
   AGENT_ACTION_LABELS,
@@ -44,6 +45,7 @@ function ResultNode({ resultRef, type }: { resultRef: string; type: string }) {
   const views = useStateValue<Record<string, string>>("/views");
   const { execute } = useActions();
   if (!envelope) return null;
+  if (type === "LandOwnershipResults") return <LandOwnershipResults envelope={envelope} />;
   if (type === "PriceResults")
     return (
       <AgentPriceResults
@@ -166,6 +168,9 @@ const AGENT_COMPONENTS: Components<typeof agentUICatalog> = {
   ),
   StationResults: ({ props: { resultRef } }) => (
     <ResultNode resultRef={resultRef} type="StationResults" />
+  ),
+  LandOwnershipResults: ({ props: { resultRef } }) => (
+    <ResultNode resultRef={resultRef} type="LandOwnershipResults" />
   ),
   FollowupActions: ({ props }) => <FollowupButtons actions={props.actions} />,
   PriceConditions: ({ props: { preparationRef } }) => (

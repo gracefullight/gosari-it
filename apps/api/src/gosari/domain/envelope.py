@@ -51,6 +51,7 @@ class UiElement(BaseModel):
         "WeatherComparison",
         "OutingResults",
         "StationResults",
+        "LandOwnershipResults",
         "FollowupActions",
     ]
     props: dict[str, Any] = Field(default_factory=dict)

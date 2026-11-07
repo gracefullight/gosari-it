@@ -37,7 +37,7 @@ def test_actual_usage_details_are_not_added_twice(monkeypatch):
     assert usage["reasoning_tokens"] == 50
     assert usage["provider_cached_input_tokens"] == 70
     assert usage["total_tokens"] == 300
-    assert usage["remaining_token_budget"] == 15700
+    assert usage["remaining_token_budget"] == client.settings.model_job_token_budget - 300
     assert usage["cost_usd"] is None
     assert "공개 조건" not in str(usage)
 

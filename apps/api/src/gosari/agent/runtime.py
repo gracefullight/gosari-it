@@ -25,6 +25,7 @@ LABELS = {
     "market_query": "도매 가격 조회",
     "survey_link": "조사가 확인",
     "retail_lookup": "판매가 확인",
+    "land_ownership": "토지 소유 구분 조회",
 }
 
 
@@ -474,6 +475,8 @@ def run_agent(
                     }
                 )
             except GosariError as error:
+                if error.code in ("ACTION_NOT_ALLOWED", "JOB_DEADLINE_EXCEEDED"):
+                    raise
                 failures[name] = error.code
                 checkpoint()
                 emit(

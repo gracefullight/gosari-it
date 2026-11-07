@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ComparisonTable, type RainResult, type TempResult } from "@/components/comparison-table";
+import { LandOwnershipResults } from "@/components/land-ownership-results";
 import { OutingCandidateCarousel } from "@/components/outing-candidate-carousel";
 import { type PriceCardData, PriceCardList } from "@/components/price-card-list";
 import { StationMap } from "@/components/station-map";
@@ -345,6 +346,7 @@ export function OutingComparisonView({
 
 export function ResultCard({ envelope }: { envelope: ResultEnvelope }) {
   const result = envelope.result;
+  if ("land_ownership" in result) return <LandOwnershipResults envelope={envelope} />;
   const rain = result.daily_rainfall as RainResult | undefined;
   const temp = result.average_temperature as TempResult | undefined;
   const outingCandidates = (result.candidates ?? result.outing_candidates) as

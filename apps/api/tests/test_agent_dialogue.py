@@ -101,7 +101,7 @@ def run(model, messages=None, execute=None, max_steps=8):
 
 def test_all_public_tools_have_real_argument_schemas_and_server_owned_sources():
     definitions = {item["function"]["name"]: item["function"] for item in dialogue_tools()}
-    assert len(definitions) == 13
+    assert len(definitions) == 14
     assert "candidates" in definitions["outing_compare"]["parameters"]["properties"]
     assert "settlement_date" in definitions["market_query"]["parameters"]["required"]
     assert "station_name" in definitions["history_compare"]["parameters"]["required"]
@@ -1142,3 +1142,36 @@ def test_prior_three_turn_protocol_copies_are_normalized_before_actual_provider_
     )
     assert "accepted_text" not in json.dumps(request, ensure_ascii=False)
     assert len(json.dumps(request, ensure_ascii=False)) < len(json.dumps(old, ensure_ascii=False))
+
+
+def test_model_selects_land_ownership_with_public_id_and_receives_only_safe_ownership_dto():
+    model = Model(
+        [
+            call("land_ownership", {"location_id": "한라산남벽"}),
+            respond("확인된 소유 구분은 국유지예요."),
+        ]
+    )
+    safe = {
+        "location_id": "aws:965",
+        "location_name": "한라산남벽",
+        "ownership_class": "public",
+        "is_private": False,
+        "owner_type_code": "02",
+        "owner_type_name": "국유지",
+        "reference_month": "2026-10",
+        "last_updated": "2026-10-31",
+    }
+    (_, answer, _, specs), events, queries = run(
+        model,
+        execute=lambda spec: ResultEnvelope(
+            request_id="r",
+            data_status="complete",
+            result={"land_ownership": safe},
+        ),
+    )
+    assert queries[0]["location_id"] == "aws:965" and queries[0]["operation"] == "land_ownership"
+    assert specs[0]["source_ids"] == ["vworld_cadastral", "vworld_ownership"]
+    assert answer == "확인된 소유 구분은 국유지예요."
+    payload = next(json.loads(m["content"]) for m in model.requests[1] if m["role"] == "tool")
+    assert payload["land_ownership"] == safe
+    assert any(name == "tool_completed" for name, _ in events)
