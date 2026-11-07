@@ -1,17 +1,15 @@
 import { PlusIcon, UserCircleIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useState } from "react";
-import { DatePickerField } from "@/components/date-picker-field";
 import { ShareActivityItem, type SharingActivity } from "@/components/share-activity-item";
 import {
   RELATIONSHIPS,
   ShareContactDialog,
   type ShareContactValues,
 } from "@/components/share-contact-dialog";
+import { ShareRecordForm } from "@/components/share-record-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { formatDisplayDate } from "@/lib/date-format";
 import { ApiError, api } from "@/lib/gosari.api";
 import type {
   NotebookEntry,
@@ -420,94 +418,24 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                 </div>
               </div>
               {recordOpen && (selectedContact || editingActivity) ? (
-                <div className="mb-7 rounded-xl bg-muted/60 p-4">
-                  <h4 className="mb-4 font-semibold">
-                    {selectedContact?.name ?? editingActivity?.item.recipient_alias} 나눔{" "}
-                    {editingActivity ? "수정" : "기록"}
-                  </h4>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="share-occurred-on">날짜</Label>
-                      <DatePickerField
-                        id="share-occurred-on"
-                        required={status === "delivered"}
-                        aria-label="나눔 날짜"
-                        value={recordDate}
-                        onChange={setRecordDate}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="share-status">상태</Label>
-                      <select
-                        id="share-status"
-                        value={status}
-                        onChange={(event) =>
-                          setStatus(event.target.value as "planned" | "delivered")
-                        }
-                        className="min-h-11 rounded-lg border border-input bg-background px-3 text-base"
-                      >
-                        <option value="delivered">전달 완료</option>
-                        <option value="planned">전달 예정</option>
-                      </select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="share-amount">분량</Label>
-                      <Input
-                        id="share-amount"
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="share-unit">단위</Label>
-                      <Input
-                        id="share-unit"
-                        value={unit}
-                        onChange={(event) => setUnit(event.target.value)}
-                        placeholder="봉지, g, kg"
-                      />
-                    </div>
-                  </div>
-                  {notebooks.length ? (
-                    <div className="mt-4 grid gap-2">
-                      <Label htmlFor="share-source-record">연결할 수첩 기록</Label>
-                      <select
-                        id="share-source-record"
-                        value={sourceRecord}
-                        onChange={(event) => setSourceRecord(event.target.value)}
-                        className="min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base"
-                      >
-                        <option value="">연결 안 함</option>
-                        {notebooks.map((entry) => (
-                          <option key={entry.record_id} value={entry.record_id}>
-                            {formatDisplayDate(entry.experience_date)} ·{" "}
-                            {entry.activity_text.slice(0, 50)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : null}
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => setRecordOpen(false)}>
-                      취소
-                    </Button>
-                    <Button
-                      onClick={() => void saveActivity()}
-                      disabled={
-                        busy ||
-                        !unit.trim() ||
-                        !Number.isFinite(Number(amount)) ||
-                        Number(amount) <= 0 ||
-                        (status === "delivered" && !recordDate)
-                      }
-                    >
-                      기록 확인
-                    </Button>
-                  </div>
-                </div>
+                <ShareRecordForm
+                  recipientName={
+                    selectedContact?.name ?? editingActivity?.item.recipient_alias ?? ""
+                  }
+                  editing={editingActivity != null}
+                  values={{ date: recordDate, status, amount, unit, sourceRecord }}
+                  onChange={(values) => {
+                    setRecordDate(values.date);
+                    setStatus(values.status);
+                    setAmount(values.amount);
+                    setUnit(values.unit);
+                    setSourceRecord(values.sourceRecord);
+                  }}
+                  notebooks={notebooks}
+                  busy={busy}
+                  onCancel={() => setRecordOpen(false)}
+                  onSave={() => void saveActivity()}
+                />
               ) : null}
               <h4 className="mb-5 text-base font-semibold">
                 나눔 이력{" "}
