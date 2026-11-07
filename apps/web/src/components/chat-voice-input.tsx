@@ -62,15 +62,14 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
       </div>
     );
   const status = {
-    preparing: "한국어 음성 인식 준비 중…",
     starting: "마이크 연결 중…",
     listening: "듣고 있습니다…",
     stopping: "받아쓴 내용 확인 중…",
     review: "받아쓴 내용을 확인해 주세요.",
-  }[dictation.status as "preparing" | "starting" | "listening" | "stopping" | "review"];
+  }[dictation.status as "starting" | "listening" | "stopping" | "review"];
   return (
     <section className="flex w-full min-w-0 flex-1 flex-col gap-2 px-1 py-1" aria-label="음성 입력">
-      {dictation.status !== "preparing" && dictation.status !== "starting" ? (
+      {dictation.status !== "starting" ? (
         <svg
           ref={waveform}
           viewBox="0 0 640 40"
@@ -109,17 +108,13 @@ export function ChatVoiceInput(props: ChatVoiceInputProps) {
           >
             <XIcon aria-hidden="true" />
           </Button>
-          {dictation.status !== "preparing" && dictation.status !== "starting" ? (
+          {dictation.status !== "starting" ? (
             <Button
               type="button"
               className="size-11 rounded-full p-0"
               aria-label="입력란에 넣기"
               title="받아쓴 내용을 입력란에 넣기"
-              disabled={
-                dictation.status === "starting" ||
-                dictation.status === "stopping" ||
-                !dictation.transcript.trim()
-              }
+              disabled={dictation.status === "stopping" || !dictation.transcript.trim()}
               onClick={dictation.finish}
             >
               <CheckIcon aria-hidden="true" />

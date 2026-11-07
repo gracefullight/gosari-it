@@ -12,7 +12,6 @@ const voice = vi.hoisted(() => ({
     start: vi.fn(),
     finish: vi.fn(),
     cancel: vi.fn(),
-    prepare: vi.fn(),
   },
   paint: undefined as ((levels: readonly number[]) => void) | undefined,
 }));
@@ -36,10 +35,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("chat voice control", () => {
-  it("shows preparation status and cancellation without extra preparation controls", () => {
-    Object.assign(voice.state, { status: "preparing", active: true });
+  it("shows microphone startup with cancellation and no language preparation controls", () => {
+    Object.assign(voice.state, { status: "starting", active: true });
     render(<ChatVoiceInput initialText="초안" onConfirm={vi.fn()} />);
-    expect(screen.getByRole("status").textContent).toBe("한국어 음성 인식 준비 중…");
+    expect(screen.getByRole("status").textContent).toBe("마이크 연결 중…");
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "상태 확인" })).toBeNull();
     expect(screen.queryByRole("button", { name: "음성 입력 시작" })).toBeNull();
