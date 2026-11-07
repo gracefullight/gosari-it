@@ -3,6 +3,7 @@ import { useAtom, useSetAtom, useStore } from "jotai";
 import { useCallback } from "react";
 import {
   applyAgentEvent,
+  applyAgentJobEvents,
   emptyAgentState,
   getAgentChatHistory,
   readPersonalForm,
@@ -97,8 +98,10 @@ export function useChat() {
           onProgress: (progress) => {
             handle.jobId = progress.job_id;
             setMessages((prev) =>
-              prev.map((message) =>
-                message.id === id
+              prev.map((original) => {
+                const message =
+                  original.id === id ? applyAgentJobEvents(original, progress) : original;
+                return message.id === id
                   ? {
                       ...message,
                       personal_search:
@@ -112,8 +115,8 @@ export function useChat() {
                         progress.ui_selection_source ?? message.ui_selection_source,
                       stream: { ...(message.stream ?? emptyAgentState()), job_id: progress.job_id },
                     }
-                  : message
-              )
+                  : message;
+              })
             );
           },
           onEvent: (event) => {
@@ -124,8 +127,9 @@ export function useChat() {
           },
         });
         setMessages((prev) =>
-          prev.map((message) =>
-            message.id === id
+          prev.map((original) => {
+            const message = original.id === id ? applyAgentJobEvents(original, job) : original;
+            return message.id === id
               ? {
                   ...message,
                   personal_search:
@@ -147,8 +151,8 @@ export function useChat() {
                           : "completed",
                   },
                 }
-              : message
-          )
+              : message;
+          })
         );
         if (job.stage === "completed" || job.stage === "partial") trackChatUsage("complete");
       } catch (error) {

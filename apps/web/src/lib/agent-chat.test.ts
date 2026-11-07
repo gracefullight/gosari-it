@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   applyAgentEvent,
+  applyAgentJobEvents,
   emptyAgentState,
   getAgentChatHistory,
   readPersonalForm,
@@ -49,6 +50,54 @@ it("preserves the selected UI and bindings when the terminal event arrives", () 
   expect(final.ui_spec).toBe(spec);
   expect(final.ui_results?.result_1).toBe(result);
   expect(final.stream?.status).toBe("completed");
+});
+
+it("restores tool results from nested terminal job events without replaying or accepting another job", () => {
+  const job = {
+    job_id: "job",
+    events: [
+      {
+        event_id: "start",
+        job_id: "job",
+        event_type: "tool_started",
+        payload: {
+          tool_call_id: "street",
+          name: "open_street_view",
+          label: "거리뷰",
+          conditions: { location_id: "aws:965" },
+        },
+      },
+      {
+        event_id: "end",
+        job_id: "job",
+        event_type: "tool_completed",
+        payload: { tool_call_id: "street", name: "open_street_view", result },
+      },
+      {
+        event_id: "other",
+        job_id: "another-job",
+        event_type: "tool_started",
+        payload: { tool_call_id: "wrong" },
+      },
+    ],
+  };
+  const restored = applyAgentJobEvents(start, job);
+  expect(restored.stream?.tools).toHaveLength(1);
+  expect(restored.stream?.tools[0]).toMatchObject({
+    id: "street",
+    status: "completed",
+    result,
+    conditions: { location_id: "aws:965" },
+  });
+  expect(applyAgentJobEvents(restored, job)).toBe(restored);
+  const partial = applyAgentEvent(start, {
+    type: "tool_completed",
+    event_id: "end",
+    job_id: "job",
+    tool_call_id: "street",
+    result,
+  });
+  expect(applyAgentJobEvents(partial, job).stream?.tools[0].status).toBe("completed");
 });
 
 it("preserves search metadata once and excludes raw records from metadata and history", () => {

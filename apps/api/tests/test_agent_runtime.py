@@ -631,3 +631,184 @@ def test_stream_admission_calibrates_same_job_against_reported_input_without_rai
     assert second["input_tokens_estimate"] >= 5694 * 1.25
     assert second["input_tokens_heuristic_estimate"] + 1800 > 16000 - 5707
     assert second["input_tokens_estimate"] + 1800 <= 16000 - 5707
+
+
+def test_full_public_catalog_with_prior_outing_context_supports_three_bounded_model_rounds(
+    monkeypatch,
+):
+    from gosari.agent.dialogue import PLACES, SYSTEM, dialogue_tools
+
+    requests = []
+
+    def stream(method, url, **kwargs):
+        requests.append(kwargs["json"])
+        usage = {"prompt_tokens": 3500, "completion_tokens": 100, "total_tokens": 3600}
+        body = "data: " + json.dumps({"choices": [{"delta": {"content": "확인했어요."}}]}) + "\n\n"
+        body += "data: " + json.dumps({"choices": [], "usage": usage}) + "\n\ndata: [DONE]\n\n"
+
+        class Context:
+            def __enter__(self):
+                return httpx.Response(
+                    200, request=httpx.Request(method, url), content=body.encode()
+                )
+
+            def __exit__(self, *args):
+                pass
+
+        return Context()
+
+    monkeypatch.setattr("gosari.agent.llm.httpx.stream", stream)
+    client = LlmClient(
+        Settings(
+            openai_api_key=token_hex(24),
+            external_requests_enabled=True,
+            model_job_token_budget=16000,
+        )
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM
+            + "\n공개 지역: "
+            + json.dumps({k: v[1] for k, v in PLACES.items()}, ensure_ascii=False),
+        },
+        {"role": "user", "content": "내일 9시에 어디로 갈까"},
+        {"role": "assistant", "content": "제주시와 성산을 비교했어요."},
+        {
+            "role": "tool",
+            "tool_call_id": "old",
+            "content": json.dumps(
+                {
+                    "facts": {
+                        f"f{i}": {
+                            "label": "성산 2026-11-08 09:00 기온",
+                            "value": 15,
+                            "unit": "℃",
+                            "as_of": "2026-11-08",
+                            "anchors": ["성산", "2026-11-08", "09:00"],
+                        }
+                        for i in range(12)
+                    }
+                },
+                ensure_ascii=False,
+            ),
+        },
+        {"role": "user", "content": "한라산남벽은 어때? 거리뷰도 보여줘"},
+    ]
+    definitions = dialogue_tools()
+    for definition in definitions:
+        properties = definition["function"]["parameters"].get("properties", {})
+        if "location_id" in properties:
+            assert "enum" not in properties["location_id"]
+    for _ in range(3):
+        client.stream_turn(messages, definitions, lambda text: None, lambda: None)
+    usage = client.usage_snapshot()
+    assert len(requests) == 3 and usage["total_tokens"] == 10800
+    assert usage["remaining_token_budget"] == 5200 and usage["token_budget"] == 16000
+
+
+def test_full_catalog_two_outing_turns_strip_respond_protocol_before_street_view_budget(
+    monkeypatch,
+):
+    from gosari.agent.dialogue import PLACES, SYSTEM, dialogue_tools, normalize_dialogue_history
+
+    text = "한라산남벽 기온은 4.3℃, 풍속은 16.3km/h예요. " * 20
+    history = []
+    for index in range(2):
+        tool_id = f"outing-{index}"
+        reply_id = f"respond-{index}"
+        history.extend(
+            [
+                {"role": "user", "content": "내일9시에비교해줘"},
+                call("outing_compare", identifier=tool_id),
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "content": json.dumps(
+                        {
+                            "facts": {
+                                f"f{index}": {
+                                    "value": 4.3,
+                                    "unit": "℃",
+                                    "label": "한라산남벽 기온",
+                                    "as_of": "2026-11-08",
+                                    "anchors": ["한라산남벽"],
+                                }
+                            }
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+                call(
+                    "respond",
+                    {"text": text, "claims": [{"fact_id": f"f{index}", "quote": text}]},
+                    identifier=reply_id,
+                ),
+                {
+                    "role": "tool",
+                    "tool_call_id": reply_id,
+                    "content": json.dumps({"accepted_text": text}),
+                },
+                {"role": "assistant", "content": text},
+            ]
+        )
+    history.append({"role": "user", "content": "그곳거리뷰도열어줘"})
+    normalized = normalize_dialogue_history(history)
+    assert (
+        len(json.dumps(normalized, ensure_ascii=False))
+        < len(json.dumps(history, ensure_ascii=False)) / 2
+    )
+    payloads = []
+
+    def stream(method, url, **kwargs):
+        payloads.append(kwargs["json"])
+        body = (
+            "data: "
+            + json.dumps({"choices": [{"delta": {"content": "거리뷰링크를열었어요."}}]})
+            + "\n\n"
+        )
+        body += (
+            "data: "
+            + json.dumps(
+                {
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 3500,
+                        "completion_tokens": 100,
+                        "total_tokens": 3600,
+                    },
+                }
+            )
+            + "\n\ndata: [DONE]\n\n"
+        )
+
+        class Context:
+            def __enter__(self):
+                return httpx.Response(
+                    200, request=httpx.Request(method, url), content=body.encode()
+                )
+
+            def __exit__(self, *args):
+                pass
+
+        return Context()
+
+    monkeypatch.setattr("gosari.agent.llm.httpx.stream", stream)
+    client = LlmClient(
+        Settings(
+            openai_api_key=token_hex(24),
+            external_requests_enabled=True,
+            model_job_token_budget=16000,
+        )
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM
+            + json.dumps({k: v[1] for k, v in PLACES.items()}, ensure_ascii=False),
+        },
+        *normalized,
+    ]
+    for _ in range(3):
+        client.stream_turn(messages, dialogue_tools(), lambda _: None, lambda: None)
+    assert len(payloads) == 3 and client.usage_snapshot()["remaining_token_budget"] == 5200

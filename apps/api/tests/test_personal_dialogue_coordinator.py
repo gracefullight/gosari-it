@@ -95,3 +95,40 @@ def test_model_selected_write_opens_existing_form_without_committing(
     assert job.personal_form == feature
     assert job.events[-1].payload["personal_form"] == feature
     assert len(session.regions) == 2 and not session.notebook and not session.share_drafts
+
+
+def test_public_street_view_uses_resolved_coordinates_and_excludes_mixed_answer_cache(
+    local_agent, monkeypatch
+):
+    coordinator, session = local_agent
+
+    def dialogue(client, incoming, execute, emit, checkpoint, **kwargs):
+        result = execute({"operation": "open_street_view", "location_id": "한라산남벽"})
+        links = result.result["street_view_links"]
+        assert result.requested_scope["location_id"] == "aws:965"
+        assert links[0]["location_name"] == "한라산남벽"
+        assert "viewpoint=33.3524%2C126.533" in links[0]["url"]
+        emit(
+            "tool_completed",
+            {
+                "tool_call_id": "public-link",
+                "name": "open_street_view",
+                "summary": "거리뷰",
+                "result": result.model_dump(mode="json"),
+            },
+        )
+        # A public read in the same turn does not make a link-bearing response
+        # reusable under the read's narrower condition fingerprint.
+        return (
+            result,
+            "한라산남벽 거리뷰를 열 수 있어요.",
+            incoming,
+            [{"operation": "retail_lookup", "source_ids": ["retail_sample"]}],
+        )
+
+    monkeypatch.setattr("gosari.agent.dialogue.run_dialogue", dialogue)
+    job, preparation = coordinator.start_chat(session, {"text": "한라산남벽 거리뷰를 열어줘"})
+    assert preparation is None and job.stage.value == "completed"
+    assert job.link_tools_used and not job.private_tools_used
+    assert job.result.result["street_view_links"][0]["provider"] == "google"
+    assert job.events[-1].payload["result"]["requested_scope"]["location_id"] == "aws:965"

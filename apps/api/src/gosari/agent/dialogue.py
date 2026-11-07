@@ -17,14 +17,14 @@ from gosari.agent.runtime import LABELS, compact_result, fallback
 from gosari.agent.ui import COMPONENTS, build_ui, selection_schema
 from gosari.domain.envelope import ResultEnvelope, UiElement
 from gosari.domain.errors import GosariError
+from gosari.sources.locations import public_places, resolve_public_place, station_catalog
 from gosari.sources.observations import kma_grid
-from gosari.sources.weather import JEJU_LOCATIONS, korea_today
+from gosari.sources.weather import korea_today
 
 STATION_NAMES = list(dict.fromkeys(name for name, _ in PUBLIC_JEJU_STATIONS))
 STATION_EXTRA: dict[str, Any] = {"enum": STATION_NAMES}
 STATION_ITEMS_EXTRA: dict[str, Any] = {"items": {"type": "string", "enum": STATION_NAMES}}
-PLACES = {row[0]: row for row in JEJU_LOCATIONS}
-PLACES["seonheul"] = ("seonheul", "선흘", 33.456, 126.705)
+PLACES = public_places()
 DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 MONTH_DAY_PATTERN = r"^\d{2}-\d{2}$"
 TIME_PATTERN = r"^(?:[01]\d|2[0-3]):00$"
@@ -60,7 +60,7 @@ class RegionArgs(Args):
 
 
 class Candidate(Args):
-    location_id: str = Field(json_schema_extra={"enum": list(PLACES)})
+    location_id: str = Field(description="공개 카탈로그의 지역 ID 또는 관측 지점 ID·이름")
     date: str = Field(pattern=DATE_PATTERN)
     time_slot: str = Field(pattern=TIME_PATTERN)
 
@@ -73,7 +73,7 @@ class OutingArgs(Args):
 
 
 class ForecastArgs(Args):
-    location_id: str = Field(json_schema_extra={"enum": list(PLACES)})
+    location_id: str = Field(description="공개 카탈로그의 지역 ID 또는 관측 지점 ID·이름")
     forecast_published_at: str = Field(description="확정된 공식 발표시각 ISO8601 한국시간")
     forecast_target_times: list[str] = Field(min_length=1, max_length=24)
 
@@ -137,6 +137,12 @@ class PersonalFormArgs(Args):
     feature: Literal["notebook", "region_compare", "share"]
 
 
+class StreetViewArgs(Args):
+    location_id: str = Field(description="공개 카탈로그의 지역 ID 또는 관측 지점 ID·이름")
+
+
+LINK_TOOLS = {"open_street_view": StreetViewArgs}
+LINK_LABELS = {"open_street_view": "거리뷰 링크 만들기"}
 PRIVATE_TOOLS = {
     "search_personal_records": PersonalSearchArgs,
     "open_personal_form": PersonalFormArgs,
@@ -181,13 +187,15 @@ def dialogue_tools() -> list[dict[str, Any]]:
         }
         for name, model in sorted(ARG_MODELS.items())
     ]
-    for name, model in PRIVATE_TOOLS.items():
+    for name, model in {**PRIVATE_TOOLS, **LINK_TOOLS}.items():
         definitions.append(
             {
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": PRIVATE_LABELS[name],
+                    "description": "거리뷰 링크를 만들어 사용자가 클릭해 열 수 있도록 안내합니다."
+                    if name == "open_street_view"
+                    else PRIVATE_LABELS[name],
                     "parameters": model.model_json_schema(),
                     "strict": False,
                 },
@@ -272,8 +280,7 @@ def public_spec_for_tool(name: str, arguments: Any) -> dict[str, Any]:
         )
     elif name == "outing_compare":
         for item in args["candidates"]:
-            if item["location_id"] not in PLACES:
-                raise GosariError("STATION_AMBIGUOUS")
+            item["location_id"] = resolve_public_place(item["location_id"])[0]
             try:
                 date.fromisoformat(item["date"])
             except ValueError:
@@ -283,9 +290,7 @@ def public_spec_for_tool(name: str, arguments: Any) -> dict[str, Any]:
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
-        place = PLACES.get(args["location_id"])
-        if place is None:
-            raise GosariError("STATION_AMBIGUOUS")
+        place = resolve_public_place(args["location_id"])
         try:
             published = datetime.fromisoformat(args["forecast_published_at"])
             if len(args["forecast_published_at"]) < 16:
@@ -316,6 +321,15 @@ def public_spec_for_tool(name: str, arguments: Any) -> dict[str, Any]:
             forecast_published_at=published.isoformat(timespec="minutes"),
             forecast_target_times=targets,
         )
+        if place[0] in station_catalog():
+            station = station_catalog()[place[0]]
+            spec["station_selections"] = [
+                {
+                    "source_id": "jeju_578",
+                    "station_name": station["name"],
+                    "station_code": station["code"],
+                }
+            ]
     elif name == "market_query":
         try:
             start = date.fromisoformat(args["settlement_date"])
@@ -392,6 +406,46 @@ def _seed_facts(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return facts
 
 
+def normalize_dialogue_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep real tool pairs and one final answer, omitting respond's protocol copies."""
+    accepted = copy.deepcopy(
+        [message for message in messages if message.get("role") in ("user", "assistant", "tool")]
+    )
+    respond_ids = {
+        str(call.get("id") or "")
+        for message in accepted
+        for call in message.get("tool_calls", [])
+        if call.get("function", {}).get("name") == "respond"
+    }
+    normalized = []
+    for message in accepted:
+        if message.get("role") == "tool" and str(message.get("tool_call_id")) in respond_ids:
+            continue
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            calls = [
+                call
+                for call in message["tool_calls"]
+                if call.get("function", {}).get("name") != "respond"
+            ]
+            if calls:
+                message["tool_calls"] = calls
+            else:
+                message.pop("tool_calls", None)
+                if not message.get("content"):
+                    continue
+        if (
+            normalized
+            and message.get("role") == "assistant"
+            and not message.get("tool_calls")
+            and normalized[-1].get("role") == "assistant"
+            and not normalized[-1].get("tool_calls")
+            and normalized[-1].get("content") == message.get("content")
+        ):
+            continue
+        normalized.append(message)
+    return normalized
+
+
 def _outing_ranking(output: ResultEnvelope) -> list[dict[str, Any]]:
     rows = output.result.get("candidates", [])
     ranked = [
@@ -449,15 +503,25 @@ def _compact_tool(
         add(len(cards), "조회한 가격 자료 수", "건")
     if name == "station_search":
         stations = output.result.get("stations", [])
+        catalog = station_catalog()
         compact["stations"] = [
             {
                 "name": row.get("station_name"),
+                **(
+                    {"location_id": f"aws:{row['station_code']}"}
+                    if f"aws:{row.get('station_code')}" in catalog
+                    and catalog[f"aws:{row['station_code']}"]["name"] == row["station_name"]
+                    else {}
+                ),
                 **({"code": str(row["station_code"])} if row.get("station_code") else {}),
                 **(
                     {"altitude_m": row["altitude_m"]}
                     if isinstance(row.get("altitude_m"), (int, float))
                     and not isinstance(row["altitude_m"], bool)
                     and 0 <= row["altitude_m"] <= 2000
+                    else {"altitude_m": catalog[f"aws:{row['station_code']}"]["altitude_m"]}
+                    if f"aws:{row.get('station_code')}" in catalog
+                    and catalog[f"aws:{row['station_code']}"]["name"] == row["station_name"]
                     else {}
                 ),
             }
@@ -483,7 +547,8 @@ def _compact_tool(
             ),
             None,
         )
-        region = place[1] if place else "제주"
+        selections = spec.get("station_selections", [])
+        region = selections[0]["station_name"] if selections else place[1] if place else "제주"
         for row in output.result.get("forecast", [])[:24]:
             metadata = {
                 "TMP": ("기온", "℃"),
@@ -826,9 +891,7 @@ def run_dialogue(
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
-    history = copy.deepcopy(
-        [message for message in messages if message.get("role") in ("user", "assistant", "tool")]
-    )
+    history = normalize_dialogue_history(messages)
     facts = _seed_facts(history)
     cursor = max((int(key[1:]) for key in facts if key.startswith("f")), default=0)
     records: list[tuple[str, dict[str, Any], ResultEnvelope]] = []
@@ -849,7 +912,12 @@ def run_dialogue(
             history.append({"role": "assistant", "content": text})
         _render_ui(records, selection, emit)
         emit("assistant_completed", {"text": text, "replacement": replacement})
-        return (records[-1][2] if records else None), text, history, specifications
+        return (
+            (records[-1][2] if records else None),
+            text,
+            normalize_dialogue_history(history),
+            specifications,
+        )
 
     for _ in range(max_steps):
         checkpoint()
@@ -937,6 +1005,7 @@ def run_dialogue(
                         payload = {"status": "responded", "accepted_text": text}
                 else:
                     personal = name in PRIVATE_TOOLS
+                    linked = name in LINK_TOOLS
                     if personal:
                         validated = PRIVATE_TOOLS[name].model_validate(args).model_dump()
                         if (
@@ -945,6 +1014,12 @@ def run_dialogue(
                         ):
                             raise GosariError("POLICY_BLOCKED")
                         spec = {"operation": name, **validated}
+                    elif linked:
+                        validated = LINK_TOOLS[name].model_validate(args).model_dump()
+                        spec = {
+                            "operation": name,
+                            "location_id": resolve_public_place(validated["location_id"])[0],
+                        }
                     else:
                         spec = public_spec_for_tool(name, args)
                     key = json.dumps(spec, ensure_ascii=False, sort_keys=True)
@@ -961,7 +1036,7 @@ def run_dialogue(
                             {
                                 "tool_call_id": call_id,
                                 "name": name,
-                                "label": PRIVATE_LABELS[name] if personal else LABELS[name],
+                                "label": {**LABELS, **PRIVATE_LABELS, **LINK_LABELS}[name],
                                 "conditions": {
                                     key: value for key, value in spec.items() if key != "query"
                                 }
@@ -995,6 +1070,30 @@ def run_dialogue(
                                 },
                             )
                         else:
+                            if linked:
+                                payload = {
+                                    "status": "link_ready",
+                                    "user_click_required": True,
+                                    "street_view_links": output.result.get("street_view_links", []),
+                                }
+                                memo[key] = output, payload
+                                emit(
+                                    "tool_completed",
+                                    {
+                                        "tool_call_id": call_id,
+                                        "name": name,
+                                        "summary": LINK_LABELS[name],
+                                        "result": output.model_dump(mode="json"),
+                                    },
+                                )
+                                history.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": call_id,
+                                        "content": json.dumps(payload, ensure_ascii=False),
+                                    }
+                                )
+                                continue
                             if personal:
                                 if name == "search_personal_records":
                                     count = output.result.get("count")

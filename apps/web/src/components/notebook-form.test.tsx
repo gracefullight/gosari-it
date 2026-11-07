@@ -31,6 +31,7 @@ vi.mock("@/components/location-picker-dialog", () => ({
 }));
 beforeEach(() => {
   vi.spyOn(api, "notebookRecall").mockResolvedValue({ entries: [], count: 0 });
+  vi.spyOn(api, "evidence").mockResolvedValue({});
 });
 afterEach(() => {
   cleanup();
@@ -160,7 +161,8 @@ it("links a recent public query to the notebook without exposing its raw paramet
   );
   fireEvent.change(screen.getByLabelText(DATE_LABEL), { target: { value: "2026-04-12" } });
   fireEvent.change(screen.getByLabelText(RECORD_LABEL), { target: { value: "봄 채취" } });
-  fireEvent.click(screen.getByRole("checkbox", { name: "공개 조회 · 2026-04-12" }));
+  fireEvent.click(screen.getByText("날씨·가격 자료 연결"));
+  fireEvent.click(screen.getByRole("checkbox", { name: "현재 날씨 · 2026-04-12" }));
   await waitFor(() =>
     expect(
       (screen.getByRole("button", { name: "저장할 내용 확인" }) as HTMLButtonElement).disabled

@@ -121,12 +121,8 @@ def compare_outings(
     spec: dict[str, Any], request_id: str, checkpoint: Callable[[], None]
 ) -> ResultEnvelope:
     from gosari.agent.analysis import get_evidence_store
-    from gosari.sources.weather import JEJU_LOCATIONS
+    from gosari.sources.locations import resolve_public_place, station_catalog
 
-    places = {row[0]: row for row in JEJU_LOCATIONS}
-    places.update({row[1]: row for row in JEJU_LOCATIONS})
-    places["제주"] = places["jeju"]
-    places["선흘"] = ("seonheul", "선흘", 33.456, 126.705)
     cards: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
     manifests: list[dict[str, Any]] = []
@@ -135,10 +131,11 @@ def compare_outings(
     for index, candidate in enumerate(spec.get("candidates", [])):
         checkpoint()
         id_ = f"cand-{index + 1}"
-        place = places.get(candidate.get("location_id") or candidate.get("station_name"))
+        place = None
         try:
-            if place is None:
-                raise GosariError("STATION_AMBIGUOUS")
+            place = resolve_public_place(
+                candidate.get("location_id") or candidate.get("station_name") or ""
+            )
             day = date.fromisoformat(
                 candidate.get("date") or candidate.get("target_date") or korea_today().isoformat()
             )
@@ -184,6 +181,17 @@ def compare_outings(
                     "candidate_id": id_,
                     "station_name": place[1],
                     "location_id": place[0],
+                    "latitude": place[2],
+                    "longitude": place[3],
+                    **(
+                        {
+                            key: value
+                            for key, value in station_catalog()[place[0]].items()
+                            if key.startswith("coordinate_") or key == "altitude_m"
+                        }
+                        if place[0] in station_catalog()
+                        else {}
+                    ),
                     "target_date": day.isoformat(),
                     "target_time_window": hour,
                     "weather": values,

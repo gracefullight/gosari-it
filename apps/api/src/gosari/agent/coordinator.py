@@ -79,6 +79,7 @@ class Job:
         self.personal_search: PersonalSearchSelection | None = None
         self.personal_form: Literal["notebook", "region_compare", "share"] | None = None
         self.private_tools_used = False
+        self.link_tools_used = False
         self.conversation_id = "default"
         self.general_help = False
         self.dialogue_messages: list[dict[str, Any]] | None = None
@@ -675,6 +676,26 @@ class Coordinator:
         def execute(arguments: dict[str, Any]) -> ResultEnvelope:
             nonlocal last_result
             checkpoint()
+            if arguments.get("operation") == "open_street_view":
+                from gosari.agent.street_view import build_street_view_links
+                from gosari.sources.locations import resolve_public_place
+
+                identifier = arguments.get("location_id")
+                if not isinstance(identifier, str):
+                    raise GosariError("INVALID_INPUT")
+                place = resolve_public_place(identifier)
+                links = build_street_view_links(
+                    {"id": place[0], "name": place[1], "latitude": place[2], "longitude": place[3]}
+                )
+                job.link_tools_used = True
+                last_result = ResultEnvelope(
+                    request_id=job.request_id,
+                    data_status="complete",
+                    source_mode="link",
+                    requested_scope={"operation": "open_street_view", "location_id": place[0]},
+                    result={"street_view_links": links},
+                )
+                return last_result
             if arguments.get("operation") == "search_personal_records":
                 from gosari.personal.search import search_personal
 
@@ -796,6 +817,7 @@ class Coordinator:
                     if (
                         cacheable_fresh
                         and not job.private_tools_used
+                        and not job.link_tools_used
                         and envelope is not None
                         and len(specs) == 1
                     ):

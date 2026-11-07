@@ -166,13 +166,8 @@ def build_public_spec(payload: dict[str, Any]) -> dict[str, Any]:
     if "candidates" in spec:
         from datetime import date
 
-        from gosari.sources.weather import JEJU_LOCATIONS
+        from gosari.sources.locations import resolve_public_place
 
-        public = {str(row[0]): row for row in JEJU_LOCATIONS}
-        public.update({str(row[1]): row for row in JEJU_LOCATIONS})
-        public["제주"] = public["jeju"]
-        public["제주(184)"] = public["jeju"]
-        public["선흘"] = ("seonheul", "선흘", 33.456, 126.705)
         candidates = spec["candidates"]
         if not isinstance(candidates, list) or not 1 <= len(candidates) <= 12:
             raise GosariError("INVALID_INPUT", {"fields": ["candidates"]})
@@ -180,10 +175,11 @@ def build_public_spec(payload: dict[str, Any]) -> dict[str, Any]:
         for index, candidate in enumerate(candidates):
             if not isinstance(candidate, dict):
                 raise GosariError("INVALID_INPUT", {"fields": ["candidates"]})
-            region = public.get(
-                str(candidate.get("location_id") or candidate.get("station_name") or "")
-            )
-            if region is None:
+            try:
+                region = resolve_public_place(
+                    str(candidate.get("location_id") or candidate.get("station_name") or "")
+                )
+            except GosariError:
                 region = ("unknown", "선택 지역", None, None)
             selected_date = candidate.get("date") or candidate.get("target_date")
             try:

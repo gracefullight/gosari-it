@@ -191,6 +191,54 @@ function renderWorkspace(store?: ReturnType<typeof createStore>) {
 }
 
 describe("Workspace routes", () => {
+  it("restores a direct street-view action from terminal job events even without a final envelope", async () => {
+    const url = "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=33.3524%2C126.533";
+    const job = {
+      kind: "job" as const,
+      job_id: "street-job",
+      request_id: "request",
+      stage: "running",
+      created_at: "2026-11-07",
+      result: null,
+      error: null,
+      events: [],
+    };
+    const result = {
+      ...envelope,
+      source_mode: "link" as const,
+      result: { street_view_links: [{ provider: "google", url, location_name: "한라산남벽" }] },
+    };
+    vi.spyOn(api, "chat").mockResolvedValue(job);
+    vi.spyOn(api, "streamJob").mockResolvedValue({
+      ...job,
+      stage: "completed",
+      events: [
+        {
+          event_id: "street-complete",
+          job_id: job.job_id,
+          event_type: "tool_completed",
+          payload: {
+            tool_call_id: "street-call",
+            name: "open_street_view",
+            label: "거리뷰 열기",
+            result,
+          },
+        },
+      ],
+    });
+    renderWorkspace();
+    fireEvent.change(screen.getByRole("textbox", { name: "메시지 입력" }), {
+      target: { value: "한라산남벽 거리뷰 열어줘" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+    expect(
+      (
+        await screen.findByRole("link", { name: "한라산남벽 Google 스트리트뷰 (새 창)" })
+      ).getAttribute("href")
+    ).toBe(url);
+    expect(screen.queryByRole("button", { name: "상세 보기" })).toBeNull();
+    expect(window.location.pathname).toBe("/");
+  });
   it("loads matching private regions only after opening streamed search details and closes on navigation", async () => {
     const job = {
       kind: "job" as const,

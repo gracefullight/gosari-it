@@ -1,4 +1,4 @@
-import { CaretDownIcon, RobotIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, CaretDownIcon, RobotIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { AgentResultDetailDialog } from "@/components/agent-result-detail-dialog";
 import { AgentGeneratedUI } from "@/components/agent-ui-renderer";
@@ -12,7 +12,7 @@ import type { AgentUIAction } from "@/lib/agent-ui.catalog";
 import { conditionPreparation, notebookPreparation } from "@/lib/agent-ui-actions";
 import { formatDisplayDate } from "@/lib/date-format";
 import type { AgentToolCall } from "@/lib/gosari.types";
-import { hasDetailedResult } from "@/lib/result-display";
+import { getStreetViewLinks, hasModalResult } from "@/lib/street-view";
 import type { ChatMessage } from "@/stores/chat.atoms";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -88,9 +88,14 @@ export function AgentChatMessage({ message }: { message: ChatMessage }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const stream = message.stream;
   if (!stream) return null;
-  const results = stream.tools.filter((tool) => hasDetailedResult(tool.result));
+  const results = stream.tools.filter((tool) => hasModalResult(tool.result));
+  const streetViewLinks = getStreetViewLinks([
+    message.envelope,
+    ...stream.tools.map((tool) => tool.result),
+    ...Object.values(message.ui_results ?? {}),
+  ]);
   const uiResults = Object.fromEntries(
-    Object.entries(message.ui_results ?? {}).filter(([, value]) => hasDetailedResult(value))
+    Object.entries(message.ui_results ?? {}).filter(([, value]) => hasModalResult(value))
   );
   const hasText = Boolean(message.text?.trim());
   const showThinking =
@@ -107,7 +112,7 @@ export function AgentChatMessage({ message }: { message: ChatMessage }) {
     stream.tools.filter((tool) => tool.status === "running").at(-1) ?? stream.tools.at(-1);
   const fallback = results.length ? (
     results.map((tool) => <ResultCard key={tool.id} envelope={tool.result!} />)
-  ) : hasDetailedResult(message.envelope) ? (
+  ) : hasModalResult(message.envelope) ? (
     <ResultCard envelope={message.envelope} />
   ) : null;
   const personalSearch =
@@ -233,6 +238,23 @@ export function AgentChatMessage({ message }: { message: ChatMessage }) {
             <p className="text-base text-muted-foreground">답변을 중지했습니다.</p>
           ) : null}
         </section>
+      ) : null}
+      {streetViewLinks.length ? (
+        <div className="flex flex-wrap gap-2">
+          {streetViewLinks.map((link) => (
+            <a
+              key={link.url}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${link.locationName} Google 스트리트뷰 (새 창)`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-base font-medium text-primary hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {link.locationName} Google 스트리트뷰
+              <ArrowSquareOutIcon aria-hidden="true" className="size-5 shrink-0" />
+            </a>
+          ))}
+        </div>
       ) : null}
       {(message.ui_spec && Object.keys(uiResults).length) || fallback || personalSearch ? (
         <AgentResultDetailDialog open={detailOpen} onOpenChange={setDetailOpen}>

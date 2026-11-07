@@ -101,7 +101,7 @@ def run(model, messages=None, execute=None, max_steps=8):
 
 def test_all_public_tools_have_real_argument_schemas_and_server_owned_sources():
     definitions = {item["function"]["name"]: item["function"] for item in dialogue_tools()}
-    assert len(definitions) == 12
+    assert len(definitions) == 13
     assert "candidates" in definitions["outing_compare"]["parameters"]["properties"]
     assert "settlement_date" in definitions["market_query"]["parameters"]["required"]
     assert "station_name" in definitions["history_compare"]["parameters"]["required"]
@@ -1012,8 +1012,8 @@ def test_station_tool_passes_actual_mountain_names_and_elevation_to_model():
     )
     payload = next(json.loads(m["content"]) for m in model.requests[1] if m["role"] == "tool")
     assert payload["stations"] == [
-        {"name": "어리목", "code": "753", "altitude_m": 968.0},
-        {"name": "성판악", "code": "782", "altitude_m": 760.0},
+        {"name": "어리목", "code": "753", "location_id": "aws:753", "altitude_m": 968.0},
+        {"name": "성판악", "code": "782", "location_id": "aws:782", "altitude_m": 760.0},
     ]
     assert answer.startswith("어리목과 성판악")
 
@@ -1039,3 +1039,106 @@ def test_step_exhaustion_preserves_station_ui_without_completing_a_count_templat
     assert error.value.code == "BUDGET_EXCEEDED"
     assert any(name == "ui_spec" for name, _ in events)
     assert not any(name == "assistant_completed" for name, _ in events)
+
+
+def test_model_selected_street_view_is_real_local_tool_with_public_id_and_no_public_cache_refs():
+    url = "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=33.3524%2C126.533"
+    model = Model(
+        [
+            call("open_street_view", {"location_id": "한라산남벽"}),
+            respond("한라산남벽 거리뷰 링크를 열어볼 수 있어요."),
+        ]
+    )
+    (output, answer, history, specs), events, queries = run(
+        model,
+        execute=lambda spec: ResultEnvelope(
+            request_id="r",
+            result={
+                "street_view_links": [
+                    {
+                        "provider": "google",
+                        "label": "거리뷰",
+                        "url": url,
+                        "location_name": "한라산남벽",
+                    }
+                ]
+            },
+        ),
+    )
+    assert queries == [{"operation": "open_street_view", "location_id": "aws:965"}]
+    assert output is None and not specs and "한라산남벽" in answer
+    assert not any(name == "ui_spec" for name, _ in events)
+    completed = next(payload for name, payload in events if name == "tool_completed")
+    assert completed["result"]["result"]["street_view_links"][0]["url"] == url
+    assert url in json.dumps(model.requests[1], ensure_ascii=False)
+    link_payload = next(json.loads(m["content"]) for m in model.requests[1] if m["role"] == "tool")
+    assert link_payload["status"] == "link_ready" and link_payload["user_click_required"] is True
+    assert any(item["role"] == "tool" for item in history)
+
+
+def test_completed_answer_history_omits_administrative_respond_copies_and_keeps_real_facts():
+    text = "탐나오 100g은 17,000원이에요."
+    model = Model([call("retail_lookup"), respond(text, [{"fact_id": "f1", "quote": text}])])
+    (_, answer, history, _), _, _ = run(model)
+    serialized = json.dumps(history, ensure_ascii=False)
+    assert serialized.count(text) == 1
+    assert not any(
+        c["function"]["name"] == "respond" for m in history for c in m.get("tool_calls", [])
+    )
+    assert any(m["role"] == "tool" and "facts" in m["content"] for m in history)
+    next_model = Model([respond("다른 규격도 확인할까요?")])
+    run(next_model, [*history, {"role": "user", "content": "그럼 200g은?"}])
+    assert text in json.dumps(next_model.requests[0], ensure_ascii=False)
+    assert answer == text
+
+
+def test_normalize_old_history_removes_only_respond_from_mixed_call_and_keeps_valid_tool_pair():
+    from gosari.agent.dialogue import normalize_dialogue_history
+
+    mixed = call("station_search", identifier="real")
+    mixed["tool_calls"] += respond("지점을 확인했어요.")["tool_calls"]
+    old = [
+        mixed,
+        {
+            "role": "tool",
+            "tool_call_id": "real",
+            "content": '{"facts":{"f1":{"value":42,"unit":"곳","label":"지점수","as_of":""}}}',
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "response",
+            "content": '{"accepted_text":"지점을 확인했어요."}',
+        },
+        {"role": "assistant", "content": "지점을 확인했어요."},
+    ]
+    normalized = normalize_dialogue_history(old)
+    assert normalized[0]["tool_calls"] == [mixed["tool_calls"][0]]
+    assert normalized[1]["tool_call_id"] == "real"
+    assert normalized[-1]["content"] == "지점을 확인했어요."
+    assert "accepted_text" not in json.dumps(normalized, ensure_ascii=False)
+    assert normalize_dialogue_history(normalized) == normalized
+
+
+def test_prior_three_turn_protocol_copies_are_normalized_before_actual_provider_request():
+    text = "한라산남벽은 내일 09:00에 4.3℃예요. " * 30
+    old = []
+    for _ in range(2):
+        old += [
+            {"role": "user", "content": "내일9시날씨"},
+            respond(text),
+            {
+                "role": "tool",
+                "tool_call_id": "response",
+                "content": json.dumps({"accepted_text": text}),
+            },
+            {"role": "assistant", "content": text},
+        ]
+    next_model = Model([respond("한라산남벽 거리뷰를 열어볼까요?")])
+    run(next_model, [*old, {"role": "user", "content": "그곳거리뷰도열어줘"}])
+    request = next_model.requests[0]
+    assert sum(m.get("content") == text for m in request) == 2
+    assert not any(
+        c["function"]["name"] == "respond" for m in request for c in m.get("tool_calls", [])
+    )
+    assert "accepted_text" not in json.dumps(request, ensure_ascii=False)
+    assert len(json.dumps(request, ensure_ascii=False)) < len(json.dumps(old, ensure_ascii=False))

@@ -3,6 +3,7 @@ import type {
   AgentChatState,
   AgentStreamEvent,
   AgentToolCall,
+  JobResult,
   PersonalFormFeature,
   PersonalSearchSummary,
 } from "@/lib/gosari.types";
@@ -51,6 +52,32 @@ export function emptyAgentState(): AgentChatState {
   return { status: "streaming", seen_event_ids: [], tools: [] };
 }
 
+export function applyAgentJobEvents(
+  message: ChatMessage,
+  job: Pick<JobResult, "job_id" | "events">
+): ChatMessage {
+  let restored = message;
+  for (const value of job.events) {
+    if (!value || typeof value !== "object") continue;
+    const row = value as Record<string, unknown>;
+    if (
+      row.job_id !== job.job_id ||
+      typeof row.event_id !== "string" ||
+      !["tool_started", "tool_completed", "tool_failed"].includes(String(row.event_type)) ||
+      !row.payload ||
+      typeof row.payload !== "object"
+    )
+      continue;
+    restored = applyAgentEvent(restored, {
+      ...row.payload,
+      type: row.event_type,
+      event_id: row.event_id,
+      job_id: job.job_id,
+    } as AgentStreamEvent);
+  }
+  return restored;
+}
+
 export function applyAgentEvent(message: ChatMessage, event: AgentStreamEvent): ChatMessage {
   const stream = message.stream ?? emptyAgentState();
   if (stream.seen_event_ids.includes(event.event_id)) return message;
@@ -85,15 +112,21 @@ export function applyAgentEvent(message: ChatMessage, event: AgentStreamEvent): 
       name: event.name ?? current?.name ?? "",
       label: event.label ?? current?.label ?? "자료 조회",
       status:
-        event.type === "tool_completed"
-          ? "completed"
-          : event.type === "tool_failed"
-            ? "failed"
-            : "running",
+        event.type === "tool_started" && current && current.status !== "running"
+          ? current.status
+          : event.type === "tool_completed"
+            ? "completed"
+            : event.type === "tool_failed"
+              ? "failed"
+              : "running",
       conditions: event.conditions ?? current?.conditions,
       summary: event.summary ?? current?.summary,
       error:
-        event.type === "tool_failed" ? (event.message ?? "자료를 가져오지 못했습니다.") : undefined,
+        event.type === "tool_failed"
+          ? (event.message ?? "자료를 가져오지 못했습니다.")
+          : event.type === "tool_started"
+            ? current?.error
+            : undefined,
       result: event.result ?? current?.result,
     };
     next.tools = current

@@ -187,3 +187,40 @@ it("renders streamed assistant markdown and leaves only the details button in it
   );
   expect(screen.getByText("서귀포가 1위").tagName).toBe("STRONG");
 });
+
+it("exposes a real tool street-view action directly once without an empty result modal", () => {
+  const url = "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=33.3524%2C126.533";
+  const result = {
+    data_status: "complete",
+    result: { street_view_links: [{ provider: "google", url, location_name: "한라산남벽" }] },
+    warnings: [],
+    errors: [],
+  } as unknown as ResultEnvelope;
+  render(
+    <AgentChatMessage
+      message={message({
+        text: "한라산남벽 주변을 열어볼 수 있습니다.",
+        envelope: result,
+        stream: {
+          ...emptyAgentState(),
+          status: "completed",
+          tools: [
+            {
+              id: "street",
+              name: "open_street_view",
+              label: "거리뷰 열기",
+              status: "completed",
+              result,
+            },
+          ],
+        },
+      })}
+    />
+  );
+  const link = screen.getByRole("link", { name: "한라산남벽 Google 스트리트뷰 (새 창)" });
+  expect(link.getAttribute("href")).toBe(url);
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  expect(screen.getAllByRole("link")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "상세 보기" })).toBeNull();
+});

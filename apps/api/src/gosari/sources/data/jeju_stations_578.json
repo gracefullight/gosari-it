@@ -1,0 +1,368 @@
+{
+  "source_id": "jeju_578",
+  "source_url": "https://www.jejudatahub.net/data/view/data/578",
+  "manifest": {
+    "source_id": "jeju_578",
+    "dataset_id": "578",
+    "operation": "stations",
+    "sanitized_parameters": {
+      "observatoryName": null
+    },
+    "requested_scope": {},
+    "fetched_scope": {},
+    "failed_scope": {},
+    "page_number": null,
+    "page_size": null,
+    "returned_count": 42,
+    "total_count": null,
+    "has_more": null,
+    "fetched_at": "2026-11-07T10:30:33.152751+00:00",
+    "verified_on": null,
+    "observed_period": {},
+    "content_hash": "29f9685b4cffe479354c8bbecdbf4dc99c7b2dbe09280ecd358008b33229db69",
+    "parser_version": "1",
+    "schema_version": "1",
+    "rights_status": "public_api",
+    "transport_status": "ok",
+    "source_mode": "fetched"
+  },
+  "stations": [
+    {
+      "id": "aws:328",
+      "name": "중문",
+      "code": "328",
+      "latitude": 33.2494,
+      "longitude": 126.406,
+      "altitude_m": 63.64
+    },
+    {
+      "id": "aws:329",
+      "name": "산천단",
+      "code": "329",
+      "latitude": 33.4471,
+      "longitude": 126.5652,
+      "altitude_m": 378.48
+    },
+    {
+      "id": "aws:330",
+      "name": "대흘",
+      "code": "330",
+      "latitude": 33.5008,
+      "longitude": 126.6495,
+      "altitude_m": 144.41
+    },
+    {
+      "id": "aws:685",
+      "name": "강정",
+      "code": "685",
+      "latitude": 33.2613,
+      "longitude": 126.4893,
+      "altitude_m": 143.0
+    },
+    {
+      "id": "aws:724",
+      "name": "추자도",
+      "code": "724",
+      "latitude": 33.9578,
+      "longitude": 126.3016,
+      "altitude_m": 8.1
+    },
+    {
+      "id": "aws:725",
+      "name": "우도",
+      "code": "725",
+      "latitude": 33.5229,
+      "longitude": 126.9541,
+      "altitude_m": 9.23
+    },
+    {
+      "id": "aws:726",
+      "name": "마라도",
+      "code": "726",
+      "latitude": 33.1221,
+      "longitude": 126.2679,
+      "altitude_m": 11.58
+    },
+    {
+      "id": "aws:727",
+      "name": "유수암",
+      "code": "727",
+      "latitude": 33.4099,
+      "longitude": 126.3929,
+      "altitude_m": 425.21
+    },
+    {
+      "id": "aws:751",
+      "name": "선흘",
+      "code": "751",
+      "latitude": 33.4821,
+      "longitude": 126.709,
+      "altitude_m": 251.09
+    },
+    {
+      "id": "aws:752",
+      "name": "서광",
+      "code": "752",
+      "latitude": 33.3046,
+      "longitude": 126.306,
+      "altitude_m": 188.42
+    },
+    {
+      "id": "aws:753",
+      "name": "어리목",
+      "code": "753",
+      "latitude": 33.393,
+      "longitude": 126.4959,
+      "altitude_m": 967.83
+    },
+    {
+      "id": "aws:779",
+      "name": "한림",
+      "code": "779",
+      "latitude": 33.3927,
+      "longitude": 126.2581,
+      "altitude_m": 38.79
+    },
+    {
+      "id": "aws:780",
+      "name": "제주남원",
+      "code": "780",
+      "latitude": 33.2772,
+      "longitude": 126.7044,
+      "altitude_m": 25.86
+    },
+    {
+      "id": "aws:781",
+      "name": "구좌",
+      "code": "781",
+      "latitude": 33.5199,
+      "longitude": 126.8777,
+      "altitude_m": 17.18
+    },
+    {
+      "id": "aws:782",
+      "name": "성판악",
+      "code": "782",
+      "latitude": 33.3851,
+      "longitude": 126.6194,
+      "altitude_m": 760.47
+    },
+    {
+      "id": "aws:792",
+      "name": "표선",
+      "code": "792",
+      "latitude": 33.3536,
+      "longitude": 126.8168,
+      "altitude_m": 80.47
+    },
+    {
+      "id": "aws:793",
+      "name": "대정",
+      "code": "793",
+      "latitude": 33.241,
+      "longitude": 126.2263,
+      "altitude_m": 2.64
+    },
+    {
+      "id": "aws:855",
+      "name": "가파도",
+      "code": "855",
+      "latitude": 33.1733,
+      "longitude": 126.2683,
+      "altitude_m": 4.25
+    },
+    {
+      "id": "aws:861",
+      "name": "월정",
+      "code": "861",
+      "latitude": 33.5623,
+      "longitude": 126.7781,
+      "altitude_m": 34.0
+    },
+    {
+      "id": "aws:862",
+      "name": "송당",
+      "code": "862",
+      "latitude": 33.4706,
+      "longitude": 126.7792,
+      "altitude_m": 196.63
+    },
+    {
+      "id": "aws:863",
+      "name": "외도",
+      "code": "863",
+      "latitude": 33.4769,
+      "longitude": 126.4317,
+      "altitude_m": 52.65
+    },
+    {
+      "id": "aws:865",
+      "name": "오등",
+      "code": "865",
+      "latitude": 33.4577,
+      "longitude": 126.522,
+      "altitude_m": 233.9
+    },
+    {
+      "id": "aws:866",
+      "name": "한라생태숲",
+      "code": "866",
+      "latitude": 33.4302,
+      "longitude": 126.5978,
+      "altitude_m": 588.19
+    },
+    {
+      "id": "aws:867",
+      "name": "삼각봉",
+      "code": "867",
+      "latitude": 33.3769,
+      "longitude": 126.5305,
+      "altitude_m": 1503.33
+    },
+    {
+      "id": "aws:868",
+      "name": "사제비",
+      "code": "868",
+      "latitude": 33.376,
+      "longitude": 126.498,
+      "altitude_m": 1392.53
+    },
+    {
+      "id": "aws:869",
+      "name": "영실",
+      "code": "869",
+      "latitude": 33.3483,
+      "longitude": 126.4964,
+      "altitude_m": 1260.2
+    },
+    {
+      "id": "aws:870",
+      "name": "진달래밭",
+      "code": "870",
+      "latitude": 33.3698,
+      "longitude": 126.5557,
+      "altitude_m": 1488.56
+    },
+    {
+      "id": "aws:871",
+      "name": "윗세오름",
+      "code": "871",
+      "latitude": 33.3623,
+      "longitude": 126.5181,
+      "altitude_m": 1665.71
+    },
+    {
+      "id": "aws:880",
+      "name": "금악",
+      "code": "880",
+      "latitude": 33.3328,
+      "longitude": 126.3237,
+      "altitude_m": 319.78
+    },
+    {
+      "id": "aws:883",
+      "name": "새별오름",
+      "code": "883",
+      "latitude": 33.3623,
+      "longitude": 126.3599,
+      "altitude_m": 435.0
+    },
+    {
+      "id": "aws:884",
+      "name": "기상(과)",
+      "code": "884",
+      "latitude": 33.2593,
+      "longitude": 126.5176,
+      "altitude_m": 173.45
+    },
+    {
+      "id": "aws:885",
+      "name": "태풍센터",
+      "code": "885",
+      "latitude": 33.3314,
+      "longitude": 126.6785,
+      "altitude_m": 244.29
+    },
+    {
+      "id": "aws:890",
+      "name": "제주가시리",
+      "code": "890",
+      "latitude": 33.3854,
+      "longitude": 126.7336,
+      "altitude_m": 275.2
+    },
+    {
+      "id": "aws:891",
+      "name": "색달",
+      "code": "891",
+      "latitude": 33.2913,
+      "longitude": 126.4223,
+      "altitude_m": 425.0
+    },
+    {
+      "id": "aws:892",
+      "name": "성산수산",
+      "code": "892",
+      "latitude": 33.4501,
+      "longitude": 126.8513,
+      "altitude_m": 102.47
+    },
+    {
+      "id": "aws:893",
+      "name": "애월",
+      "code": "893",
+      "latitude": 33.4659,
+      "longitude": 126.3275,
+      "altitude_m": 5.24
+    },
+    {
+      "id": "aws:965",
+      "name": "한라산남벽",
+      "code": "965",
+      "latitude": 33.3524,
+      "longitude": 126.533,
+      "altitude_m": 1576.0
+    },
+    {
+      "id": "aws:980",
+      "name": "강정",
+      "code": "980",
+      "latitude": 33.2606,
+      "longitude": 126.4895,
+      "altitude_m": 141.84
+    },
+    {
+      "id": "aws:184",
+      "name": "제주",
+      "code": "184",
+      "latitude": 33.5141,
+      "longitude": 126.5297,
+      "altitude_m": 20.79
+    },
+    {
+      "id": "aws:185",
+      "name": "고산",
+      "code": "185",
+      "latitude": 33.2938,
+      "longitude": 126.1628,
+      "altitude_m": 71.39
+    },
+    {
+      "id": "aws:188",
+      "name": "성산",
+      "code": "188",
+      "latitude": 33.3868,
+      "longitude": 126.8802,
+      "altitude_m": 20.34
+    },
+    {
+      "id": "aws:189",
+      "name": "서귀포",
+      "code": "189",
+      "latitude": 33.2462,
+      "longitude": 126.5653,
+      "altitude_m": 51.86
+    }
+  ],
+  "normalized_sha256": "f177418bdf64cde889dbf0c5601822e93c630cc98576c10d302f6e6a97b8a449"
+}

@@ -1,16 +1,16 @@
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDisplayDate } from "@/lib/date-format";
 import { api } from "@/lib/gosari.api";
-import type { ResultEnvelope } from "@/lib/gosari.types";
+import { publicEvidenceLabel } from "@/lib/public-evidence-label";
 import { featureResultsAtom, messagesAtom } from "@/stores/chat.atoms";
 
-function queryLabel(result: ResultEnvelope): string {
-  const date = result.observed_period?.start ?? result.observed_period?.date ?? result.verified_on;
-  return `${"prices" in result.result || "price" in result.result ? "가격" : "공개"} 조회${typeof date === "string" ? ` · ${formatDisplayDate(date)}` : ""}`;
+interface EvidenceChoice {
+  ids: string[];
+  label: string;
 }
 
 export function PublicEvidenceSelector({
@@ -22,36 +22,107 @@ export function PublicEvidenceSelector({
 }) {
   const results = useAtomValue(featureResultsAtom);
   const messages = useAtomValue(messagesAtom);
-  const candidates = new Map<string, string>();
-  for (const result of [
-    ...Object.values(results),
-    ...messages.map((message) => message.envelope),
-  ]) {
-    if (result) for (const id of result.evidence_ids) candidates.set(id, queryLabel(result));
+  const candidates = useMemo(() => {
+    const choices: EvidenceChoice[] = [];
+    const seen = new Set<string>();
+    for (const result of [
+      ...Object.values(results),
+      ...messages.flatMap((message) => [
+        message.envelope,
+        ...Object.values(message.ui_results ?? {}),
+        ...(message.stream?.tools.map((tool) => tool.result) ?? []),
+      ]),
+    ]) {
+      if (!result) continue;
+      const ids = result.evidence_ids.filter((id) => !seen.has(id));
+      if (!ids.length) continue;
+      for (const id of ids) seen.add(id);
+      choices.push({ ids, label: publicEvidenceLabel(result) });
+    }
+    return choices;
+  }, [results, messages]);
+  const retained = useMemo(
+    () => value.filter((id) => !candidates.some((choice) => choice.ids.includes(id))),
+    [value, candidates]
+  );
+  const [retainedLabels, setRetainedLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    if (retained.length)
+      void Promise.all(
+        retained.map(async (id) => {
+          try {
+            return [id, publicEvidenceLabel(await api.evidence(id))] as const;
+          } catch {
+            return [id, "이전에 연결한 자료"] as const;
+          }
+        })
+      ).then((entries) => {
+        if (active) setRetainedLabels(Object.fromEntries(entries));
+      });
+    return () => {
+      active = false;
+    };
+  }, [retained]);
+  const choices = candidates.map((choice) => ({ ...choice, ids: [...choice.ids] }));
+  for (const id of retained) {
+    const label = retainedLabels[id] ?? "이전에 연결한 자료";
+    const existing = choices.find((choice) => choice.label === label);
+    if (existing) existing.ids = [...existing.ids, id];
+    else choices.push({ ids: [id], label });
   }
-  const retained = value.filter((id) => !candidates.has(id));
-  if (!candidates.size && !value.length) return null;
+  if (!choices.length) return null;
+  const selected = choices.filter((choice) => choice.ids.some((id) => value.includes(id)));
   return (
-    <fieldset className="grid gap-2">
-      <legend className="mb-2 font-medium">공개 조회 연결</legend>
-      {retained.length ? (
-        <p className="text-base text-muted-foreground">기존 조회 {retained.length}건 연결됨</p>
+    <section aria-label="참고 자료" className="grid min-w-0 gap-3">
+      {selected.length ? (
+        <ul className="grid gap-2 text-base">
+          {selected.map((choice) => (
+            <li
+              key={choice.ids.join(":")}
+              className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
+            >
+              <span className="min-w-0 break-words">{choice.label}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`${choice.label} 연결 해제`}
+                onClick={() => onChange(value.filter((id) => !choice.ids.includes(id)))}
+              >
+                연결 해제
+              </Button>
+            </li>
+          ))}
+        </ul>
       ) : null}
-      {[...candidates].map(([id, label], index) => (
-        <label key={id} className="flex min-h-11 items-center gap-3 text-base">
-          <input
-            type="checkbox"
-            className="size-5 accent-primary"
-            checked={value.includes(id)}
-            onChange={(event) =>
-              onChange(event.target.checked ? [...value, id] : value.filter((old) => old !== id))
-            }
-          />
-          {label}
-          {candidates.size > 1 ? ` (${index + 1})` : ""}
-        </label>
-      ))}
-    </fieldset>
+      <details className="min-w-0">
+        <summary className="flex min-h-11 cursor-pointer items-center text-base text-primary">
+          날씨·가격 자료 연결
+        </summary>
+        <fieldset className="mt-2 grid gap-2" aria-label="연결할 자료">
+          {choices.map((choice) => (
+            <label
+              key={choice.ids.join(":")}
+              className="flex min-h-11 cursor-pointer items-center gap-3 text-base"
+            >
+              <input
+                type="checkbox"
+                className="size-5 shrink-0 accent-primary"
+                checked={choice.ids.every((id) => value.includes(id))}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...new Set([...value, ...choice.ids])]
+                      : value.filter((id) => !choice.ids.includes(id))
+                  )
+                }
+              />
+              <span className="min-w-0 break-words">{choice.label}</span>
+            </label>
+          ))}
+        </fieldset>
+      </details>
+    </section>
   );
 }
 
@@ -106,7 +177,7 @@ export function PublicEvidenceLinks({ ids }: { ids: string[] }) {
   return (
     <>
       <Button variant="ghost" size="sm" onClick={() => void show()}>
-        연결한 공개 조회 {ids.length}건
+        참고 자료 보기
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
@@ -114,7 +185,7 @@ export function PublicEvidenceLinks({ ids }: { ids: string[] }) {
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto text-base"
         >
           <DialogHeader>
-            <DialogTitle>연결한 공개 조회</DialogTitle>
+            <DialogTitle>참고 자료</DialogTitle>
           </DialogHeader>
           {state === "loading" ? (
             <p role="status">조회 불러오는 중…</p>
@@ -156,7 +227,10 @@ export function PublicEvidenceLinks({ ids }: { ids: string[] }) {
                   ];
                   return (
                     <li key={id} className="grid gap-2 border-b border-border pb-4 last:border-0">
-                      <p className="font-medium">{sources.join(" · ") || "공개 조회 자료"}</p>
+                      <p className="font-medium">{publicEvidenceLabel(record)}</p>
+                      <p className="text-base text-muted-foreground">
+                        {sources.join(" · ") || "자료"}
+                      </p>
                       {replay ||
                       partial ||
                       dataStatus === "needs_confirmation" ||
