@@ -13,6 +13,27 @@ from gosari.sessions import Session, utcnow
 SCHEMA_VERSION = "notebook-v1"
 
 
+def _location_label(session: Session, payload: dict[str, Any]) -> str | None:
+    address = payload.get("location_address")
+    if isinstance(address, str) and address.strip():
+        return address.strip()
+    region_id = payload.get("private_region_id")
+    region = session.regions.get(region_id) if isinstance(region_id, str) else None
+    if region is not None and region.local_alias.strip():
+        return region.local_alias.strip()
+    if payload.get("latitude") is not None and payload.get("longitude") is not None:
+        return "지도에서 선택한 위치"
+    return None
+
+
+def _display_payload(session: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    display = {key: value for key, value in payload.items() if key not in ("latitude", "longitude")}
+    location = _location_label(session, payload)
+    if location is not None:
+        display["location_address"] = location
+    return display
+
+
 def _validate_payload(payload: dict[str, Any], settings_max: int) -> dict[str, Any]:
     experience_date = payload.get("experience_date")
     activity_text = payload.get("activity_text")
@@ -72,7 +93,7 @@ def prepare_create(session: Session, payload: dict[str, Any], max_text: int) -> 
         0,
         SCHEMA_VERSION,
         payload,
-        display_payload=payload,
+        display_payload=_display_payload(session, payload),
     )
 
 
@@ -92,6 +113,7 @@ def prepare_update(
             entry.revision,
             SCHEMA_VERSION,
             merged,
+            display_payload=_display_payload(session, merged),
         )
 
 
@@ -108,7 +130,7 @@ def prepare_delete(session: Session, record_id: str) -> Preview:
             SCHEMA_VERSION,
             {"record_id": record_id},
             display_payload={
-                "location_address": entry.location_address,
+                "location_address": _location_label(session, entry.model_dump(mode="json")),
                 "experience_date": entry.experience_date.isoformat(),
                 "activity_text": entry.activity_text,
                 "companion_aliases": entry.companion_aliases,

@@ -1,3 +1,4 @@
+import { useSetAtom } from "jotai";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import {
 import { formatDisplayDate } from "@/lib/date-format";
 import { ApiError, api, commitPathFor } from "@/lib/gosari.api";
 import type { Consent, Preview } from "@/lib/gosari.types";
+import { clearCommittedNotebookDraftAtom } from "@/stores/notebook-drafts.atoms";
 
 interface ApprovalConfirmDialogProps {
   preview: Preview;
@@ -46,7 +48,7 @@ const FIELD_LABELS: Record<string, string> = {
   amount_unit: "단위",
   kind: "지역 구분",
   local_alias: "지역 별칭",
-  public_area_code: "대략 행정구역",
+  public_area_code: "주소·위치 메모",
   items: "나눔 대상 목록",
   unit_totals: "단위별 합계",
   source_record_ids: "연결할 수첩",
@@ -103,6 +105,7 @@ export function ApprovalConfirmDialog({
   onClose,
   onCommitted,
 }: ApprovalConfirmDialogProps) {
+  const clearCommittedDraft = useSetAtom(clearCommittedNotebookDraftAtom);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const issuedConsent = useRef<{ previewId: string; previewHash: string; consent: Consent } | null>(
@@ -130,6 +133,7 @@ export function ApprovalConfirmDialog({
       }
       const result = await api.commit(commitPathFor(preview.action), preview, consent);
       if (result.state === "committed") {
+        if (preview.action.startsWith("notebook.")) clearCommittedDraft(preview.preview_id);
         onCommitted(`${label} 완료`);
       } else {
         setError(result.safe_error ?? "반영 실패");

@@ -117,7 +117,7 @@ describe("agent JSON renderer", () => {
     );
     const spec = resultSpec("LandOwnershipResults", []);
     render(<AgentGeneratedUI spec={spec} results={{ result_1: owned }} onAction={vi.fn()} />);
-    expect(screen.getByText("사유지")).toBeTruthy();
+    expect(screen.getByText("개인")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "선흘" })).toBeTruthy();
     const fabricated = {
       ...spec,

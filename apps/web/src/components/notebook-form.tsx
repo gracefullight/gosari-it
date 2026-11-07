@@ -1,6 +1,6 @@
 import { MapPinIcon, PencilSimpleIcon, PlusIcon } from "@phosphor-icons/react";
-import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useAtomValue, useStore } from "jotai";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePickerField } from "@/components/date-picker-field";
 import { DateSelectionCalendar } from "@/components/date-selection-calendar";
 import { LocationPickerDialog, type SelectedLocation } from "@/components/location-picker-dialog";
@@ -13,6 +13,7 @@ import { formatDisplayDate } from "@/lib/date-format";
 import { ApiError, api } from "@/lib/gosari.api";
 import type { NotebookEntry, Preview } from "@/lib/gosari.types";
 import { revisionCounterAtom } from "@/stores/chat.atoms";
+import { notebookDraftsAtom } from "@/stores/notebook-drafts.atoms";
 
 interface NotebookFormProps {
   onPreview: (preview: Preview) => void;
@@ -23,14 +24,30 @@ interface NotebookFormProps {
   onNavigate?: (path: string) => void;
 }
 
-export function NotebookForm({
+export function NotebookForm(props: NotebookFormProps) {
+  let session = "";
+  try {
+    session = window.localStorage.getItem("gosari_session_id") ?? "";
+  } catch {
+    /* Drafts remain in this Jotai store when storage is unavailable. */
+  }
+  const draftKey = JSON.stringify([session, props.recordId ?? "new"]);
+  return <NotebookDraftForm key={draftKey} {...props} draftKey={draftKey} />;
+}
+
+function NotebookDraftForm({
   onPreview,
   mode,
   recordId,
   initialDate,
   initialEvidenceIds,
   onNavigate,
-}: NotebookFormProps) {
+  draftKey,
+}: NotebookFormProps & { draftKey: string }) {
+  const store = useStore();
+  const [savedDraft] = useState(() => store.get(notebookDraftsAtom)[draftKey]);
+  const [draftReady, setDraftReady] = useState(!recordId || Boolean(savedDraft));
+  const discardDraft = useRef(false);
   const revision = useAtomValue(revisionCounterAtom);
   const [localMode, setLocalMode] = useState<"list" | "write">("list");
   const activeMode = mode ?? localMode;
@@ -38,17 +55,48 @@ export function NotebookForm({
   const [view, setView] = useState<"list" | "calendar">("list");
   const [calendarDate, setCalendarDate] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [entries, setEntries] = useState<NotebookEntry[]>([]);
-  const [date, setDate] = useState(initialDate ?? "");
-  const [text, setText] = useState("");
-  const [aliases, setAliases] = useState("");
-  const [amount, setAmount] = useState("");
-  const [unit, setUnit] = useState("봉지");
-  const [location, setLocation] = useState<SelectedLocation | null>(null);
+  const [date, setDate] = useState(savedDraft?.date ?? initialDate ?? "");
+  const [text, setText] = useState(savedDraft?.text ?? "");
+  const [aliases, setAliases] = useState(savedDraft?.aliases ?? "");
+  const [amount, setAmount] = useState(savedDraft?.amount ?? "");
+  const [unit, setUnit] = useState(savedDraft?.unit ?? "봉지");
+  const [location, setLocation] = useState<SelectedLocation | null>(savedDraft?.location ?? null);
   const [locationOpen, setLocationOpen] = useState(false);
   const [evidenceIds, setEvidenceIds] = useState<string[]>(() => [
-    ...new Set(initialEvidenceIds ?? []),
+    ...new Set(savedDraft?.evidenceIds ?? initialEvidenceIds ?? []),
   ]);
-  const [privateRegionId, setPrivateRegionId] = useState<string | null>(null);
+  const [privateRegionId, setPrivateRegionId] = useState<string | null>(
+    savedDraft?.privateRegionId ?? null
+  );
+  useEffect(() => {
+    if (activeMode !== "write" || !draftReady || discardDraft.current) return;
+    store.set(notebookDraftsAtom, (previous) => ({
+      ...previous,
+      [draftKey]: {
+        date,
+        text,
+        aliases,
+        amount,
+        unit,
+        location,
+        evidenceIds,
+        privateRegionId,
+      },
+    }));
+  }, [
+    activeMode,
+    draftReady,
+    store,
+    draftKey,
+    date,
+    text,
+    aliases,
+    amount,
+    unit,
+    location,
+    evidenceIds,
+    privateRegionId,
+  ]);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [aliasFilter, setAliasFilter] = useState("");
@@ -114,8 +162,10 @@ export function NotebookForm({
       .then((result) => {
         const entry = result.entries.find((item) => item.record_id === recordId);
         if (!active) return;
-        if (entry) populate(entry);
-        else setError("기록을 찾을 수 없습니다.");
+        if (entry) {
+          if (!store.get(notebookDraftsAtom)[draftKey]) populate(entry);
+          setDraftReady(true);
+        } else setError("기록을 찾을 수 없습니다.");
       })
       .catch(() => {
         if (active) setError("기록을 불러오지 못했습니다.");
@@ -123,8 +173,9 @@ export function NotebookForm({
     return () => {
       active = false;
     };
-  }, [recordId, populate]);
+  }, [recordId, populate, store, draftKey]);
   function startNew() {
+    discardDraft.current = false;
     setDate("");
     setText("");
     setAliases("");
@@ -155,7 +206,18 @@ export function NotebookForm({
         public_evidence_ids: evidenceIds,
         private_region_id: privateRegionId,
       };
-      onPreview(await api.notebookPrepare(payload, editingId ? "update" : "create", editingId));
+      const preview = await api.notebookPrepare(
+        payload,
+        editingId ? "update" : "create",
+        editingId
+      );
+      store.set(notebookDraftsAtom, (previous) => {
+        const draft = previous[draftKey];
+        return draft
+          ? { ...previous, [draftKey]: { ...draft, previewId: preview.preview_id } }
+          : previous;
+      });
+      onPreview(preview);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "미리보기를 만들지 못했습니다.");
     } finally {
@@ -190,9 +252,25 @@ export function NotebookForm({
             기록 쓰기
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => navigate("list")}>
-            목록으로
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                discardDraft.current = true;
+                store.set(notebookDraftsAtom, (previous) => {
+                  const next = { ...previous };
+                  delete next[draftKey];
+                  return next;
+                });
+                navigate("list");
+              }}
+            >
+              작성 취소
+            </Button>
+            <Button variant="outline" onClick={() => navigate("list")}>
+              목록으로
+            </Button>
+          </div>
         )}
       </div>
       {activeMode === "list" ? (
@@ -241,14 +319,18 @@ export function NotebookForm({
             <div className="flex gap-2">
               <Input
                 id="notebook-location"
-                value={
-                  location?.address ||
-                  (location?.latitude != null
-                    ? `${location.latitude.toFixed(5)}, ${location.longitude?.toFixed(5)}`
-                    : "")
+                value={location?.address ?? ""}
+                onChange={(event) => {
+                  const address = event.target.value;
+                  setLocation((previous) => ({
+                    address,
+                    latitude: previous?.latitude ?? null,
+                    longitude: previous?.longitude ?? null,
+                  }));
+                }}
+                placeholder={
+                  location?.latitude != null ? "지도에서 선택한 위치" : "장소 이름 또는 주소"
                 }
-                placeholder="지도에서 위치 선택"
-                readOnly
               />
               <Button variant="outline" onClick={() => setLocationOpen(true)}>
                 <MapPinIcon />
@@ -501,7 +583,7 @@ export function NotebookForm({
           value={location}
           onClose={() => setLocationOpen(false)}
           onSelect={(next) => {
-            setLocation(next);
+            setLocation({ ...next, address: next.address.trim() || "지도에서 선택한 위치" });
             setLocationOpen(false);
           }}
         />

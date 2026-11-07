@@ -34,11 +34,12 @@ export function LandOwnershipResults({ envelope }: { envelope: ResultEnvelope })
   const land = envelope.result.land_ownership as Record<string, unknown>;
   const officialName = typeof land.owner_type_name === "string" ? land.owner_type_name.trim() : "";
   const ownership =
-    land.ownership_class === "private"
+    officialName ||
+    (land.ownership_class === "private"
       ? "사유지"
       : land.ownership_class === "public"
-        ? "공유지"
-        : officialName;
+        ? "국·공유지"
+        : "");
   const location =
     typeof land.location_name === "string" && land.location_name.trim()
       ? land.location_name.trim()

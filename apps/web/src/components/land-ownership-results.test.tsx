@@ -48,9 +48,12 @@ function envelope(
 }
 
 it.each([
-  ["private", true, "개인", "사유지"],
-  ["public", false, "국유지", "공유지"],
+  ["private", true, "개인", "개인"],
+  ["public", false, "국유지", "국유지"],
+  ["public", false, "법인", "법인"],
   ["unknown", null, "법인", "법인"],
+  ["private", true, "", "사유지"],
+  ["public", false, "", "국·공유지"],
 ])(
   "renders the official ownership classification without inferring from the location: %s",
   (classification, isPrivate, officialName, label) => {
@@ -73,9 +76,16 @@ it.each([
     expect(document.body.textContent).not.toContain("INTERNAL");
     expect(document.body.textContent).not.toContain("MUST-NOT-RENDER");
     expect(document.body.textContent).not.toContain("PRIVATE-PHONE");
-    if (classification === "unknown") expect(screen.queryByText("공유지")).toBeNull();
+    expect(screen.queryByText("공유지")).toBeNull();
   }
 );
+
+it("preserves the official national-land name in the fallback result card", () => {
+  render(<ResultCard envelope={envelope()} />);
+  expect(screen.getByText("국유지")).toBeTruthy();
+  expect(screen.queryByText("공유지")).toBeNull();
+  expect(screen.getByText("2026-10")).toBeTruthy();
+});
 
 it.each(["no_data", "unavailable"] as const)(
   "hides empty %s ownership details even when placeholder coordinates exist",

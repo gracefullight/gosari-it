@@ -4,6 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NotebookForm } from "@/components/notebook-form";
 import { api } from "@/lib/gosari.api";
 import { messagesAtom } from "@/stores/chat.atoms";
+import {
+  clearCommittedNotebookDraftAtom,
+  notebookDraftsAtom,
+} from "@/stores/notebook-drafts.atoms";
 
 const RECORD_LABEL = /^기록/;
 const DATE_LABEL = /^채취 날짜/;
@@ -21,12 +25,20 @@ vi.mock("@/components/date-picker-field", () => ({
 }));
 vi.mock("@/components/location-picker-dialog", () => ({
   LocationPickerDialog: ({ onSelect }: { onSelect: (v: unknown) => void }) => (
-    <button
-      type="button"
-      onClick={() => onSelect({ address: "제주시 조천읍", latitude: 33.45, longitude: 126.7 })}
-    >
-      위치 확정
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onSelect({ address: "제주시 조천읍", latitude: 33.45, longitude: 126.7 })}
+      >
+        위치 확정
+      </button>
+      <button
+        type="button"
+        onClick={() => onSelect({ address: "", latitude: 33.38, longitude: 126.55 })}
+      >
+        핀 위치 확정
+      </button>
+    </>
   ),
 }));
 beforeEach(() => {
@@ -51,7 +63,7 @@ it("separates record listing from writing", async () => {
   expect(screen.getByLabelText(RECORD_LABEL)).toBeTruthy();
   expect(screen.queryByLabelText("동행 검색")).toBeNull();
 });
-it("includes the chosen address and map coordinates in the preview request", async () => {
+it("keeps a searched address editable without changing its selected map coordinates", async () => {
   const prepare = vi
     .spyOn(api, "notebookPrepare")
     .mockResolvedValue({ preview_id: "preview" } as Awaited<
@@ -69,6 +81,7 @@ it("includes the chosen address and map coordinates in the preview request", asy
   await waitFor(() =>
     expect((screen.getByLabelText("위치") as HTMLInputElement).value).toBe("제주시 조천읍")
   );
+  fireEvent.change(screen.getByLabelText("위치"), { target: { value: "가족과 가는 조천 숲" } });
   await waitFor(() =>
     expect(
       (screen.getByRole("button", { name: "저장할 내용 확인" }) as HTMLButtonElement).disabled
@@ -78,9 +91,45 @@ it("includes the chosen address and map coordinates in the preview request", asy
   await waitFor(() =>
     expect(prepare).toHaveBeenCalledWith(
       expect.objectContaining({
-        location_address: "제주시 조천읍",
+        location_address: "가족과 가는 조천 숲",
         latitude: 33.45,
         longitude: 126.7,
+      }),
+      "create",
+      undefined
+    )
+  );
+});
+
+it("gives an unnamed map pin a readable location while preserving its exact coordinates", async () => {
+  const prepare = vi
+    .spyOn(api, "notebookPrepare")
+    .mockResolvedValue({ preview_id: "pin-preview" } as Awaited<
+      ReturnType<typeof api.notebookPrepare>
+    >);
+  render(
+    <Provider>
+      <NotebookForm mode="write" initialDate="2026-11-07" onPreview={vi.fn()} />
+    </Provider>
+  );
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), {
+    target: { value: "지도에 찍은 채취 장소" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "지도 선택" }));
+  fireEvent.click(screen.getByRole("button", { name: "핀 위치 확정" }));
+  expect((screen.getByLabelText("위치") as HTMLInputElement).value).toBe("지도에서 선택한 위치");
+  await waitFor(() =>
+    expect(
+      (screen.getByRole("button", { name: "저장할 내용 확인" }) as HTMLButtonElement).disabled
+    ).toBe(false)
+  );
+  fireEvent.click(screen.getByRole("button", { name: "저장할 내용 확인" }));
+  await waitFor(() =>
+    expect(prepare).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location_address: "지도에서 선택한 위치",
+        latitude: 33.38,
+        longitude: 126.55,
       }),
       "create",
       undefined
@@ -212,4 +261,101 @@ it("starts a notebook with the public weather references passed from the map", a
       undefined
     )
   );
+});
+
+it("restores an unsaved record draft after remount without mixing records or sessions", async () => {
+  const session = vi.spyOn(window.localStorage, "getItem").mockReturnValue("session-a");
+  const entry = (id: string) => ({
+    record_id: id,
+    experience_date: "2026-11-07",
+    activity_text: `${id} 원본`,
+    companion_aliases: [],
+    location_address: "원래 장소",
+    latitude: 33.380012,
+    longitude: 126.550034,
+  });
+  vi.spyOn(api, "notebookList").mockResolvedValue({
+    entries: [entry("first"), entry("second")],
+  } as never);
+  const store = createStore();
+  const node = (id: string) => (
+    <Provider store={store}>
+      <NotebookForm mode="write" recordId={id} onPreview={vi.fn()} />
+    </Provider>
+  );
+  const view = render(node("first"));
+  await screen.findByDisplayValue("first 원본");
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), {
+    target: { value: "저장하지 않은 초안" },
+  });
+  fireEvent.change(screen.getByLabelText("위치"), { target: { value: "초안 장소" } });
+  view.rerender(node("second"));
+  await screen.findByDisplayValue("second 원본");
+  expect(screen.queryByDisplayValue("저장하지 않은 초안")).toBeNull();
+  view.rerender(node("first"));
+  await screen.findByDisplayValue("저장하지 않은 초안");
+  expect((screen.getByLabelText("위치") as HTMLInputElement).value).toBe("초안 장소");
+  const restored = store.get(notebookDraftsAtom)[JSON.stringify(["session-a", "first"])];
+  expect(restored.location).toEqual({
+    address: "초안 장소",
+    latitude: 33.380012,
+    longitude: 126.550034,
+  });
+  session.mockReturnValue("session-b");
+  view.rerender(node("first"));
+  await screen.findByDisplayValue("first 원본");
+  expect(screen.queryByDisplayValue("저장하지 않은 초안")).toBeNull();
+  view.unmount();
+});
+
+it("keeps preview drafts until their exact commit and discards an explicitly cancelled draft", async () => {
+  vi.spyOn(window.localStorage, "getItem").mockReturnValue("draft-session");
+  vi.spyOn(api, "notebookList").mockResolvedValue({
+    entries: [
+      {
+        record_id: "record",
+        experience_date: "2026-11-07",
+        activity_text: "원본",
+        companion_aliases: [],
+      },
+    ],
+  } as never);
+  vi.spyOn(api, "notebookPrepare").mockResolvedValue({ preview_id: "first-preview" } as never);
+  const store = createStore();
+  const key = JSON.stringify(["draft-session", "record"]);
+  const open = () =>
+    render(
+      <Provider store={store}>
+        <NotebookForm mode="write" recordId="record" onPreview={vi.fn()} />
+      </Provider>
+    );
+  let view = open();
+  await screen.findByDisplayValue("원본");
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), { target: { value: "미리보기 초안" } });
+  await waitFor(() =>
+    expect(
+      (screen.getByRole("button", { name: "수정 내용 확인" }) as HTMLButtonElement).disabled
+    ).toBe(false)
+  );
+  fireEvent.click(screen.getByRole("button", { name: "수정 내용 확인" }));
+  await waitFor(() => expect(store.get(notebookDraftsAtom)[key].previewId).toBe("first-preview"));
+  view.unmount();
+  view = open();
+  await screen.findByDisplayValue("미리보기 초안");
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), { target: { value: "그 뒤 새 초안" } });
+  store.set(clearCommittedNotebookDraftAtom, "first-preview");
+  expect(store.get(notebookDraftsAtom)[key].text).toBe("그 뒤 새 초안");
+  fireEvent.click(screen.getByRole("button", { name: "수정 내용 확인" }));
+  await waitFor(() => expect(store.get(notebookDraftsAtom)[key].previewId).toBe("first-preview"));
+  store.set(clearCommittedNotebookDraftAtom, "first-preview");
+  expect(store.get(notebookDraftsAtom)[key]).toBeUndefined();
+  view.unmount();
+  view = open();
+  await screen.findByDisplayValue("원본");
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), { target: { value: "취소할 초안" } });
+  fireEvent.click(screen.getByRole("button", { name: "작성 취소" }));
+  expect(store.get(notebookDraftsAtom)[key]).toBeUndefined();
+  view.unmount();
+  open();
+  await screen.findByDisplayValue("원본");
 });
