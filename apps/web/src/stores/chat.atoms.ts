@@ -1,6 +1,12 @@
 import { atom } from "jotai";
 import { FEATURE_PATHS, type Feature, resolveAppRoute } from "@/lib/app-routes";
-import type { Capabilities, PrepareResponse, Preview, ResultEnvelope } from "@/lib/gosari.types";
+import type {
+  AgentChatState,
+  Capabilities,
+  PrepareResponse,
+  Preview,
+  ResultEnvelope,
+} from "@/lib/gosari.types";
 
 export type { Feature } from "@/lib/app-routes";
 
@@ -14,7 +20,8 @@ export interface ChatMessage {
   prepare?: PrepareResponse;
   preview?: Preview;
   error?: string;
-  kind?: "result" | "clarify" | "personal-form" | "preview" | "error" | "text";
+  stream?: AgentChatState;
+  kind?: "agent" | "result" | "clarify" | "personal-form" | "preview" | "error" | "text";
 }
 
 export const sessionReadyAtom = atom(false);
@@ -41,6 +48,7 @@ export const activeFeatureAtom = atom(
     set(navigateToPathAtom, feature ? FEATURE_PATHS[feature] : "/")
 );
 export const messagesAtom = atom<ChatMessage[]>([]);
+export const conversationIdAtom = atom<string | null>(null);
 export const featureResultsAtom = atom<Partial<Record<Feature, ResultEnvelope>>>({});
 export const featureErrorsAtom = atom<Partial<Record<Feature, string | null>>>({});
 export const revisionCounterAtom = atom(0);

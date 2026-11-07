@@ -16,6 +16,20 @@ afterEach(() => {
 });
 
 describe("session recovery", () => {
+  it("recovers a rejected chat submission once and preserves its conversation", async () => {
+    const body = JSON.stringify({ text: "제주 현재 날씨", conversation_id: "conversation-1" });
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+      if (url === "/api/v1/sessions/") return json({ session_id: "new-session" });
+      return new Headers(options?.headers).get("X-Gosari-Session") === "new-session"
+        ? json({ kind: "job", job_id: "job-1" })
+        : json({ error: "SESSION_EXPIRED" }, 401);
+    });
+    const response = await fetchWithSession("/api/v1/analysis/chat", { method: "POST", body });
+    expect(await response.json()).toEqual({ kind: "job", job_id: "job-1" });
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls[2][1]?.body).toBe(body);
+  });
+
   it("does not bootstrap valid requests", async () => {
     const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ prices: [] }));
     expect(

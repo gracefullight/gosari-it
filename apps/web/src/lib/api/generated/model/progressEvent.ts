@@ -4,6 +4,7 @@
  * 고사리잇 API
  * OpenAPI spec version: 0.1.0
  */
+import type { ProgressEventPayload } from './progressEventPayload';
 
 export interface ProgressEvent {
   event_id: string;
@@ -14,4 +15,6 @@ export interface ProgressEvent {
   total_units?: number | null;
   unit_kind?: string | null;
   safe_message?: string;
+  event_type?: string;
+  payload?: ProgressEventPayload;
 }

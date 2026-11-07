@@ -110,6 +110,82 @@
         "deprecated": false
       }
     },
+    "/api/v1/analysis/chat": {
+      "post": {
+        "summary": "Chat",
+        "operationId": "ApiV1AnalysisChatChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChatJobResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChatConfirmationResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/api/v1/analysis/jobs": {
       "post": {
         "summary": "CreateJob",
@@ -1971,6 +2047,87 @@
         ],
         "title": "CapabilitiesResponse"
       },
+      "ChatConfirmationResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "confirmation",
+            "default": "confirmation"
+          },
+          "preparation": {
+            "$ref": "#/components/schemas/PrepareResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preparation"
+        ],
+        "title": "ChatConfirmationResponse"
+      },
+      "ChatJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResultEnvelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressEvent"
+            },
+            "type": "array"
+          },
+          "model_usage": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "assistant_text": {
+            "type": "string",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "const": "job",
+            "default": "job"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "job_id",
+          "request_id",
+          "stage"
+        ],
+        "title": "ChatJobResponse"
+      },
       "Consent": {
         "properties": {
           "consent_id": {
@@ -2093,6 +2250,10 @@
           "model_usage": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "assistant_text": {
+            "type": "string",
+            "default": ""
           }
         },
         "type": "object",
@@ -2683,6 +2844,14 @@
           "safe_message": {
             "type": "string",
             "default": ""
+          },
+          "event_type": {
+            "type": "string",
+            "default": "stage"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "type": "object",

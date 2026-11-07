@@ -8,6 +8,7 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -27,12 +28,31 @@ def runtime_system_prompt(prompt: str, now: datetime | None = None) -> str:
     current = (now or datetime.now(ZoneInfo("Asia/Seoul"))).astimezone(ZoneInfo("Asia/Seoul"))
     weekday = ("월", "화", "수", "목", "금", "토", "일")[current.weekday()]
     return (
+        f"{prompt}\n\n"
         f"현재 기준 날짜: {current:%Y-%m-%d} ({weekday}요일)\n"
         f"현재 기준 시각: {current:%H:%M:%S} (Asia/Seoul, UTC+09:00)\n"
         "오늘·내일·모레는 이 한국 시간 기준으로 해석하세요. "
         "입력에 명시된 날짜와 자료의 관측·발표·조사 시점은 그대로 유지하세요.\n\n"
-        f"{prompt}"
     )
+
+
+def _partial_answer(arguments: str) -> str:
+    match = re.search(r'"text"\s*:\s*"', arguments)
+    if not match:
+        return ""
+    raw = arguments[match.end() :]
+    escaped = False
+    for index, char in enumerate(raw):
+        if char == '"' and not escaped:
+            raw = raw[:index]
+            break
+        escaped = char == "\\" and not escaped
+    for trim in range(min(12, len(raw)) + 1):
+        try:
+            return str(json.loads('"' + (raw[:-trim] if trim else raw) + '"'))
+        except ValueError:
+            continue
+    return ""
 
 
 def public_model_data(value: Any) -> Any:
@@ -152,6 +172,153 @@ class LlmClient:
             "cost_usd": None,
             "records": records,
         }
+
+    def stream_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        on_text: Callable[[str], None],
+        checkpoint: Callable[[], None],
+        *,
+        tool_choice: dict[str, Any] | str = "auto",
+    ) -> dict[str, Any]:
+        """Provider SSE deltas only. Tool argument fragments are never sent to the UI."""
+        if not self.available:
+            raise GosariError("MODEL_UNAVAILABLE")
+        if not hasattr(self._local, "records"):
+            self.begin_job()
+        payload = {
+            "model": self.settings.llm_model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": tool_choice,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "reasoning_effort": "none",
+            "max_completion_tokens": 1800,
+        }
+        serialized = json.dumps(payload, ensure_ascii=False)
+        ascii_count = sum(ord(char) < 128 for char in serialized)
+        # Conservative estimate, not provider tokens: JSON/English ~3 chars per token,
+        # Korean and other non-ASCII up to two tokens per character.
+        estimated = (ascii_count + 2) // 3 + (len(serialized) - ascii_count) * 2 + 256
+        remaining = self._local.remaining
+        if (
+            remaining is None
+            or estimated + 1800 > remaining
+            or len(self._local.records) >= self.settings.max_plan_steps
+        ):
+            raise GosariError("BUDGET_EXCEEDED")
+        if not self._slots.acquire(blocking=False):
+            raise GosariError("LOCAL_BUSY", {"retry_after_seconds": 1})
+        started = time.monotonic()
+        record: dict[str, Any] = {
+            "model": self.settings.llm_model,
+            "request_sent": True,
+            "status": "failed",
+            "usage_status": "unknown",
+            "input_tokens_estimate": estimated,
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "reasoning_tokens": None,
+            "provider_cached_input_tokens": None,
+            "elapsed_ms": 0,
+        }
+        calls: dict[int, dict[str, Any]] = {}
+        content = ""
+        emitted = ""
+        try:
+            with httpx.stream(
+                "POST",
+                OPENAI_URL,
+                headers={"Authorization": f"Bearer {self.settings.resolved_openai_api_key}"},
+                json=payload,
+                timeout=60.0,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    checkpoint()
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[5:].strip()
+                    if raw == "[DONE]":
+                        break
+                    chunk = json.loads(raw)
+                    usage = chunk.get("usage")
+                    if isinstance(usage, dict):
+                        for source, field in (
+                            ("prompt_tokens", "input_tokens"),
+                            ("completion_tokens", "output_tokens"),
+                            ("total_tokens", "total_tokens"),
+                        ):
+                            value = usage.get(source)
+                            record[field] = value if isinstance(value, int) and value >= 0 else None
+                        for detail, key, field in (
+                            (
+                                "prompt_tokens_details",
+                                "cached_tokens",
+                                "provider_cached_input_tokens",
+                            ),
+                            ("completion_tokens_details", "reasoning_tokens", "reasoning_tokens"),
+                        ):
+                            data = usage.get(detail)
+                            value = data.get(key) if isinstance(data, dict) else None
+                            record[field] = value if isinstance(value, int) and value >= 0 else None
+                        if all(
+                            record[key] is not None
+                            for key in ("input_tokens", "output_tokens", "total_tokens")
+                        ):
+                            record["usage_status"] = "reported"
+                    for choice in chunk.get("choices", []):
+                        delta = choice.get("delta", {})
+                        text = delta.get("content")
+                        if isinstance(text, str) and text:
+                            content += text
+                            on_text(text)
+                        for fragment in delta.get("tool_calls", []):
+                            index = fragment.get("index", 0)
+                            if (
+                                not isinstance(index, int)
+                                or not 0 <= index < self.settings.max_plan_steps
+                            ):
+                                raise GosariError("MODEL_UNAVAILABLE")
+                            call = calls.setdefault(
+                                index,
+                                {
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                },
+                            )
+                            call["id"] += fragment.get("id") or ""
+                            function = fragment.get("function", {})
+                            call["function"]["name"] += function.get("name") or ""
+                            call["function"]["arguments"] += function.get("arguments") or ""
+                            if len(call["function"]["arguments"]) > 65536:
+                                raise GosariError("MODEL_UNAVAILABLE")
+                            if call["function"]["name"] == "respond":
+                                partial = _partial_answer(call["function"]["arguments"])
+                                if partial.startswith(emitted) and len(partial) > len(emitted):
+                                    on_text(partial[len(emitted) :])
+                                    emitted = partial
+            message: dict[str, Any] = {"role": "assistant", "content": content or None}
+            if calls:
+                message["tool_calls"] = [calls[index] for index in sorted(calls)]
+            record["status"] = "completed"
+            return message
+        except httpx.HTTPError, ValueError, KeyError, TypeError:
+            raise GosariError("MODEL_UNAVAILABLE") from None
+        finally:
+            record["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+            self._local.records.append(record)
+            self._local.remaining = (
+                max(0, remaining - record["total_tokens"])
+                if record["usage_status"] == "reported"
+                else None
+            )
+            self._slots.release()
+            logger.info("model usage", **record)
 
     def _post(self, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         if not hasattr(self._local, "records"):

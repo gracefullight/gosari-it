@@ -1,6 +1,12 @@
-import { waitForAnalysisJob } from "@/lib/analysis-jobs";
+import {
+  type AnalysisStreamOptions,
+  cancelAnalysisJob,
+  streamAnalysisJob,
+  waitForAnalysisJob,
+} from "@/lib/analysis-jobs";
 import type {
   ActionResult,
+  AgentChatResponse,
   Capabilities,
   Consent,
   JobResult,
@@ -96,19 +102,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  chat: (body: { text: string; conversation_id?: string }, signal?: AbortSignal) =>
+    request<AgentChatResponse>("/api/v1/analysis/chat", {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+    }),
+  streamJob: (job: JobResult, options: AnalysisStreamOptions) => streamAnalysisJob(job, options),
   runAnalysis: async (
     spec: Record<string, unknown>,
     safeText?: string,
-    options?: { signal?: AbortSignal; onProgress?: (job: JobResult) => void }
-  ) =>
-    waitForAnalysisJob(
-      await request<JobResult>("/api/v1/analysis/jobs", {
-        method: "POST",
-        body: JSON.stringify({ spec, safe_text: safeText }),
-      }),
-      options?.signal,
-      options?.onProgress
-    ),
+    options?: AnalysisStreamOptions
+  ) => {
+    const initial = await request<JobResult>("/api/v1/analysis/jobs", {
+      method: "POST",
+      body: JSON.stringify({ spec, safe_text: safeText, conversation_id: options?.conversationId }),
+      signal: options?.signal,
+    });
+    if (options?.signal?.aborted) {
+      void cancelAnalysisJob(initial.job_id).catch(() => {});
+      options.signal.throwIfAborted();
+    }
+    return options?.onEvent
+      ? streamAnalysisJob(initial, options)
+      : waitForAnalysisJob(initial, options?.signal, options?.onProgress);
+  },
   getJob: (jobId: string) => request<JobResult>(`/api/v1/jobs/${jobId}`),
   evidence: (evidenceId: string) =>
     request<Record<string, unknown>>(`/api/v1/evidence/${evidenceId}`),

@@ -882,17 +882,43 @@ class AnalysisEngine:
     def _survey_link(self, spec: dict[str, Any], request_id: str) -> ResultEnvelope:
         links = survey_link_cards()
         samples = survey_sample_cards()
+        available_sample_count = len(samples)
+        raw_form = str(spec.get("fresh_or_dried") or "")
+        form = {"fresh": "생고사리", "dried": "건고사리"}.get(raw_form, raw_form)
+        if form and form != "전체":
+            samples = [card for card in samples if card.get("form") == form]
+        for field, card_field in (
+            ("survey_stage", "survey_stage"),
+            ("grade", "survey_grade"),
+            ("survey_as_of", "price_as_of"),
+        ):
+            if spec.get(field):
+                samples = [card for card in samples if card.get(card_field) == spec[field]]
+        if spec.get("origin_filter"):
+            samples = [
+                card
+                for card in samples
+                if str(spec["origin_filter"]) in str(card.get("survey_region") or "")
+            ]
         return ResultEnvelope(
             request_id=request_id,
             data_status=DataStatus.UNAVAILABLE,
             source_mode=SourceMode.LINK,
             link_status=LinkStatus.LINK_READY,
             verified_on="2026-11-04",
+            requested_scope={"sample_conditions": spec},
+            effective_scope={
+                "matched_samples": len(samples),
+                "available_samples": available_sample_count,
+            },
             result={
                 "channel": "survey",
                 "sample_cards": samples,
                 "links": links,
                 "reason": "LINK_ONLY",
+                "matched_sample_count": len(samples),
+                "available_sample_count": available_sample_count,
+                "sample_filter_status": "matched" if samples else "no_match",
             },
         )
 
@@ -900,6 +926,56 @@ class AnalysisEngine:
         products, meta = load_retail_products(self.settings.resolved_fixtures_dir)
         cards = retail_sample_cards(products, meta["verified_on"])
         links = retail_link_cards()
+        available_sample_count = len(cards)
+        raw_form = str(spec.get("fresh_or_dried") or "")
+        form = {"fresh": "생고사리", "dried": "건고사리"}.get(raw_form, raw_form)
+        if form and form != "전체":
+            cards = [card for card in cards if card.get("form") == form]
+        retailers = set(spec.get("source_ids", [])) & {"tamnao", "oasis"}
+        names = {"tamnao": "탐나오", "oasis": "오아시스마켓"}
+        if retailers:
+            cards = [
+                card for card in cards if card.get("source_id") in {names[key] for key in retailers}
+            ]
+            links = [link for link in links if link.get("source_id") in retailers]
+        if spec.get("product_option"):
+            cards = [
+                card
+                for card in cards
+                if (card.get("product_option") or f"{card.get('net_weight_value')}g")
+                == spec["product_option"]
+            ]
+        if spec.get("product_id"):
+            from urllib.parse import parse_qs, urlsplit
+
+            def product_id(card: dict[str, Any]) -> str:
+                url = urlsplit(str(card.get("source_url") or ""))
+                return parse_qs(url.query).get("prdtNum", [""])[0] or url.path.rsplit("/", 1)[-1]
+
+            cards = [card for card in cards if product_id(card) == spec["product_id"]]
+        if spec.get("package_weight_unit"):
+            import re
+
+            match = re.fullmatch(
+                r"\s*(\d+(?:\.\d+)?)\s*(kg|g)\s*", str(spec["package_weight_unit"])
+            )
+            grams = Decimal(match[1]) * (1000 if match[2] == "kg" else 1) if match else None
+            cards = [
+                card
+                for card in cards
+                if grams is not None
+                and card.get("net_weight_value") is not None
+                and card.get("net_weight_unit") == "g"
+                and Decimal(str(card.get("net_weight_value"))) == grams
+            ]
+        if spec.get("origin_filter"):
+            cards = [
+                card
+                for card in cards
+                if str(spec["origin_filter"]) in str(card.get("origin_label_raw") or "")
+            ]
+        matched_sources = {card.get("source_id") for card in cards}
+        links = [link for link in links if names.get(str(link.get("source_id"))) in matched_sources]
         evidence_id = get_evidence_store().put(
             {
                 "public_query_spec": spec,
@@ -930,11 +1006,23 @@ class AnalysisEngine:
         )
         return ResultEnvelope(
             request_id=request_id,
-            data_status=DataStatus.COMPLETE,
+            data_status=DataStatus.COMPLETE if cards else DataStatus.NO_DATA,
             source_mode=SourceMode.REPLAY,
             link_status=LinkStatus.LINK_READY,
             verified_on=meta["verified_on"],
-            result={"channel": "retail", "sample_cards": cards, "links": links},
+            requested_scope={"sample_conditions": spec},
+            effective_scope={
+                "matched_samples": len(cards),
+                "available_samples": available_sample_count,
+            },
+            result={
+                "channel": "retail",
+                "sample_cards": cards,
+                "links": links,
+                "matched_sample_count": len(cards),
+                "available_sample_count": available_sample_count,
+                "reason": None if cards else "NO_MATCHING_SAMPLE",
+            },
             evidence_ids=[evidence_id],
         )
 

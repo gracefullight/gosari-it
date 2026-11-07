@@ -324,7 +324,7 @@ def test_allowed_field_cannot_carry_private_canary_into_public_evidence(field):
 def test_price_question_clarifies_price_conditions():
     prepared = Coordinator(Settings()).prepare(Session(Settings()), {"text": "제주 고사리 얼마야?"})
     assert prepared["feature"] == "price"
-    assert prepared["form"]["feature_hint"] == "market_query"
+    assert prepared["form"]["feature_hint"] == "price"
     assert "가격" in str(prepared["form"])
     assert "연도" not in str(prepared["form"])
 

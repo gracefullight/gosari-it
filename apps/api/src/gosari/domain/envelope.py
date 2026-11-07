@@ -38,6 +38,8 @@ class ProgressEvent(BaseModel):
     total_units: int | None = None
     unit_kind: str | None = None
     safe_message: str = ""
+    event_type: str = "stage"
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class JobResponse(BaseModel):
@@ -51,6 +53,11 @@ class JobResponse(BaseModel):
     error: str | None = None
     events: list[ProgressEvent] = Field(default_factory=list)
     model_usage: dict[str, Any] = Field(default_factory=dict)
+    assistant_text: str = ""
+
+
+class ChatJobResponse(JobResponse):
+    kind: Literal["job"] = "job"
 
 
 class PrepareResponse(BaseModel):
@@ -61,6 +68,11 @@ class PrepareResponse(BaseModel):
     needs_confirmation: bool
     spec: dict[str, Any] | None = None
     form: dict[str, Any] | None = None
+
+
+class ChatConfirmationResponse(BaseModel):
+    kind: Literal["confirmation"] = "confirmation"
+    preparation: PrepareResponse
 
 
 class SessionCreated(BaseModel):

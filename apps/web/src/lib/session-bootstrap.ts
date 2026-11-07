@@ -65,6 +65,7 @@ function allowsRecovery(pathname: string, method: string): boolean {
   if (method !== "POST") return false;
   return (
     pathname === "/api/v1/analysis/jobs" ||
+    pathname === "/api/v1/analysis/chat" ||
     pathname === "/api/v1/personal/search" ||
     RECOVERABLE_FORM_PATH.test(pathname)
   );

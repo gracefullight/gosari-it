@@ -12,7 +12,7 @@ import {
   TagIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { type ComponentType, useState } from "react";
 import { OnboardingGuide } from "@/components/onboarding-guide";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useChat } from "@/hooks/use-chat";
-import { activeFeatureAtom, FEATURES, type Feature, messagesAtom } from "@/stores/chat.atoms";
+import { activeFeatureAtom, FEATURES, type Feature } from "@/stores/chat.atoms";
 
 const FEATURE_ICONS: Record<Feature, ComponentType<{ className?: string }>> = {
   나들이: SunHorizonIcon,
@@ -52,8 +52,7 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
   const activeFeature = useAtomValue(activeFeatureAtom);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-  const setMessages = useSetAtom(messagesAtom);
-  const { openFeature } = useChat();
+  const { openFeature, resetConversation } = useChat();
 
   function selectFeature(feature: Feature | null) {
     openFeature(feature);
@@ -61,8 +60,7 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
   }
 
   function newConversation() {
-    setMessages([]);
-    openFeature(null);
+    resetConversation();
     setMobileOpen(false);
   }
 

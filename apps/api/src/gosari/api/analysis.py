@@ -11,7 +11,12 @@ from litestar.response import Response, ServerSentEvent
 
 from gosari.agent.coordinator import Job, get_coordinator
 from gosari.api.deps import check_origin, current_session
-from gosari.domain.envelope import JobResponse, PrepareResponse
+from gosari.domain.envelope import (
+    ChatConfirmationResponse,
+    ChatJobResponse,
+    JobResponse,
+    PrepareResponse,
+)
 
 
 def _job_response(job: Job) -> JobResponse:
@@ -24,11 +29,26 @@ def _job_response(job: Job) -> JobResponse:
         error=job.error,
         events=job.events,
         model_usage=job.model_usage,
+        assistant_text=job.assistant_text,
     )
 
 
 class AnalysisController(Controller):
     path = "/analysis"
+
+    @post("/chat", sync_to_thread=True)
+    def chat(
+        self, request: Request[Any, Any, Any], data: dict[str, Any]
+    ) -> Response[ChatJobResponse | ChatConfirmationResponse]:
+        check_origin(request)
+        session = current_session(request)
+        job, preparation = get_coordinator().start_chat(session, data)
+        if job is None:
+            return Response(
+                ChatConfirmationResponse(preparation=PrepareResponse.model_validate(preparation)),
+                status_code=200,
+            )
+        return Response(ChatJobResponse(**_job_response(job).model_dump()), status_code=202)
 
     @post("/prepare", sync_to_thread=True, status_code=200)
     def prepare(self, request: Request[Any, Any, Any], data: dict[str, Any]) -> PrepareResponse:
@@ -43,7 +63,9 @@ class AnalysisController(Controller):
         check_origin(request)
         session = current_session(request)
         spec = data.get("spec", data)
-        job = get_coordinator().start_job(session, spec)
+        job = get_coordinator().start_job(
+            session, spec, conversation_id=data.get("conversation_id")
+        )
         status = 200 if job.result is not None else 202
         return Response(_job_response(job), status_code=status)
 
@@ -69,13 +91,40 @@ class JobsController(Controller):
 
         async def stream() -> AsyncIterator[dict[str, str]]:
             sent = 0
+            last_event = request.headers.get("last-event-id")
+            if last_event:
+                for index, event in enumerate(job.events):
+                    if event.event_id == last_event:
+                        sent = index + 1
+                        break
+            done_sent = False
             while True:
                 events = job.events[sent:]
                 for event in events:
-                    yield {"data": json.dumps(event.model_dump(mode="json"), ensure_ascii=False)}
-                sent = len(job.events)
-                if job.stage.value in ("completed", "failed", "cancelled", "partial"):
+                    payload = {
+                        "event_id": event.event_id,
+                        "job_id": job.job_id,
+                        "request_id": job.request_id,
+                        "timestamp": event.timestamp.isoformat(),
+                        "stage": event.stage,
+                        "message": event.safe_message,
+                        **event.payload,
+                    }
+                    yield {
+                        "id": event.event_id,
+                        "event": event.event_type,
+                        "data": json.dumps(payload, ensure_ascii=False),
+                    }
+                    done_sent = done_sent or event.event_type == "done"
+                sent += len(events)
+                if done_sent or (
+                    last_event
+                    and any(
+                        event.event_id == last_event and event.event_type == "done"
+                        for event in job.events
+                    )
+                ):
                     break
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.05)
 
         return ServerSentEvent(stream())

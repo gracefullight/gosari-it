@@ -1,4 +1,75 @@
+import { experimental_streamedQuery, type QueryClient } from "@tanstack/react-query";
+import { readAgentEvents } from "@/lib/agent-stream";
+import type { AgentStreamEvent, JobResult } from "@/lib/gosari.types";
 import { fetchWithSession } from "@/lib/session-bootstrap";
+
+export interface AnalysisStreamOptions {
+  conversationId?: string;
+  signal?: AbortSignal;
+  onProgress?: (job: JobResult) => void;
+  onEvent?: (event: AgentStreamEvent) => void;
+  queryClient?: QueryClient;
+  lastEventId?: string;
+}
+
+export async function streamAnalysisJob(
+  initial: JobResult,
+  options: AnalysisStreamOptions
+): Promise<JobResult> {
+  let final = initial;
+  let finished = false;
+  options.onProgress?.(initial);
+  async function* events(signal?: AbortSignal) {
+    const combined =
+      options.signal && signal
+        ? AbortSignal.any([options.signal, signal])
+        : (options.signal ?? signal);
+    for await (const event of readAgentEvents(initial.job_id, {
+      signal: combined,
+      lastEventId: options.lastEventId,
+    })) {
+      options.onEvent?.(event);
+      if (event.type === "done") {
+        finished = true;
+        final = {
+          ...initial,
+          stage: event.stage ?? "completed",
+          result: event.result ?? null,
+          error: event.error ?? null,
+          model_usage: event.model_usage,
+        };
+      }
+      yield event;
+    }
+  }
+  if (options.queryClient) {
+    await options.queryClient.fetchQuery({
+      queryKey: ["analysis", "stream", initial.job_id],
+      queryFn: experimental_streamedQuery({
+        streamFn: ({ signal }) => events(signal),
+        refetchMode: "append",
+      }),
+      staleTime: 0,
+      gcTime: 30 * 60 * 1000,
+      retry: false,
+    });
+  } else {
+    for await (const _ of events()) {
+      /* Deliver server events as soon as they arrive. */
+    }
+  }
+  if (!finished) throw new Error("답변을 받지 못했습니다.");
+  // A final read is only needed when an older server omits its terminal result.
+  if (!final.result && final.stage !== "cancelled" && final.stage !== "failed") {
+    const response = await fetchWithSession(`/api/v1/jobs/${encodeURIComponent(initial.job_id)}`, {
+      signal: options.signal,
+    });
+    if (!response.ok) throw new Error("완료된 답변을 확인하지 못했습니다.");
+    final = (await response.json()) as JobResult;
+  }
+  options.onProgress?.(final);
+  return final;
+}
 
 interface PendingAnalysisJob {
   job_id: string;

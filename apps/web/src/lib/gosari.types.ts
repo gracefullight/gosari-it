@@ -35,7 +35,63 @@ export interface JobResult {
   result: ResultEnvelope | null;
   error: string | null;
   events: unknown[];
+  model_usage?: Record<string, unknown>;
 }
+
+export type AgentEventType =
+  | "stage"
+  | "assistant_delta"
+  | "assistant_completed"
+  | "tool_started"
+  | "tool_completed"
+  | "tool_failed"
+  | "error"
+  | "done";
+
+export interface AgentStreamEvent {
+  type: AgentEventType;
+  event_id: string;
+  job_id: string;
+  request_id?: string;
+  timestamp?: string;
+  text?: string;
+  stage?: string;
+  safe_message?: string;
+  message?: string;
+  code?: string;
+  tool_call_id?: string;
+  name?: string;
+  label?: string;
+  conditions?: Record<string, unknown>;
+  summary?: string;
+  result?: ResultEnvelope | null;
+  error?: string | null;
+  model_usage?: Record<string, unknown>;
+}
+
+export interface AgentToolCall {
+  id: string;
+  name: string;
+  label: string;
+  status: "running" | "completed" | "failed";
+  conditions?: Record<string, unknown>;
+  summary?: string;
+  error?: string;
+  result?: ResultEnvelope;
+}
+
+export interface AgentChatState {
+  status: "streaming" | "completed" | "cancelled" | "disconnected" | "failed";
+  job_id?: string;
+  last_event_id?: string;
+  seen_event_ids: string[];
+  stage_message?: string;
+  tools: AgentToolCall[];
+}
+
+export type AgentChatResponse =
+  | { kind: "confirmation"; preparation: PrepareResponse }
+  | ({ kind: "job" } & JobResult);
 
 export interface Preview {
   preview_id: string;
@@ -83,6 +139,11 @@ export interface PrepareResponse {
   needs_confirmation: boolean;
   spec?: Record<string, unknown>;
   form?: {
+    kind?: string;
+    inline?: boolean;
+    initial_values?: Record<string, unknown>;
+    price_channels?: { value: string; label: string }[];
+    market_options?: { value: string; label: string }[];
     query?: string;
     note?: string;
     questions?: string[];

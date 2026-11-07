@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { InlineOutingConditionForm } from "@/components/inline-outing-condition-form";
+import { InlinePriceConditionForm } from "@/components/inline-price-condition-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +10,7 @@ import type { PrepareResponse } from "@/lib/gosari.types";
 const YEAR_PATTERN = /^\d{4}$/;
 
 export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse }) {
-  const { confirmSpec, openFeature } = useChat();
+  const { confirmSpec } = useChat();
   const original = prepare.spec;
   const selection = (
     original?.station_selections as { source_id?: string; station_name?: string }[] | undefined
@@ -25,7 +27,12 @@ export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse })
     prepare.feature === "history_compare" ||
     prepare.form?.feature_hint === "history_compare";
   const price =
+    prepare.form?.kind === "price_conditions" ||
     prepare.feature === "price" ||
+    prepare.form?.feature_hint === "price" ||
+    original?.operation === "market_query" ||
+    original?.operation === "retail_lookup" ||
+    original?.operation === "survey_link" ||
     prepare.form?.feature_hint === "market_query" ||
     prepare.form?.feature_hint === "retail_lookup" ||
     prepare.form?.feature_hint === "survey_link";
@@ -110,6 +117,11 @@ export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse })
             이 조건으로 비교
           </Button>
         </div>
+      ) : price ? (
+        <InlinePriceConditionForm
+          prepare={prepare}
+          onConfirm={(spec, label) => confirmSpec(spec, label, null)}
+        />
       ) : original ? (
         <div className="flex flex-col gap-3">
           <p className="text-base text-muted-foreground">
@@ -123,15 +135,11 @@ export function AnalysisConditionForm({ prepare }: { prepare: PrepareResponse })
             이 조건으로 조회
           </Button>
         </div>
-      ) : price ? (
-        <Button onClick={() => openFeature("가격 조사")}>가격 조건 선택</Button>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => openFeature("나들이")}>나들이 조건 선택</Button>
-          <Button variant="outline" onClick={() => openFeature("가격 조사")}>
-            가격 조사
-          </Button>
-        </div>
+        <InlineOutingConditionForm
+          prepare={prepare}
+          onConfirm={(spec, label) => confirmSpec(spec, label, null)}
+        />
       )}
     </div>
   );

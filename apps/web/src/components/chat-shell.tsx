@@ -2,6 +2,7 @@ import { CircleNotchIcon } from "@phosphor-icons/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import characterUrl from "@/assets/character-256.png";
+import { AgentChatMessage } from "@/components/agent-chat-message";
 import { AnalysisConditionForm } from "@/components/analysis-condition-form";
 import { AnalysisJobStatus } from "@/components/analysis-job-status";
 import { ApprovalConfirmDialog } from "@/components/approval-confirm-dialog";
@@ -50,6 +51,7 @@ function MessageView({
         <AlertDescription>{message.error}</AlertDescription>
       </Alert>
     );
+  if (message.kind === "agent") return <AgentChatMessage message={message} />;
   if (message.kind === "result" && message.envelope)
     return <ResultCard envelope={message.envelope} />;
   if (message.kind === "clarify" && message.prepare)
@@ -62,7 +64,13 @@ function MessageView({
     if (feature === "share") return <ShareForm onPreview={onPreview} />;
     if (feature === "region_compare")
       return <RegionForm onPreview={onPreview} hideStationCompare />;
-    if (feature === "market_query" || feature === "retail_lookup") return <PriceLookupPage />;
+    if (
+      feature === "price" ||
+      feature === "market_query" ||
+      feature === "retail_lookup" ||
+      feature === "survey_link"
+    )
+      return <AnalysisConditionForm prepare={message.prepare} />;
     if (feature === "outing") return <WeatherMapPage mode="outing" onPreview={onPreview} />;
     return <AnalysisConditionForm prepare={message.prepare} />;
   }
@@ -93,15 +101,22 @@ export function ChatShell() {
   const setMessages = useSetAtom(messagesAtom);
   const [pendingPreview, setPendingPreview] = useState<Preview | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const followAnswer = useRef(true);
   useEffect(() => {
-    if (!activeFeature && (messages.length > 0 || busy))
-      bottom.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeFeature, messages.length, busy]);
+    if (!activeFeature && followAnswer.current && (messages.length > 0 || busy))
+      bottom.current?.scrollIntoView({ behavior: "auto" });
+  }, [activeFeature, messages, busy]);
   const isEmptyHome = !activeFeature && messages.length === 0 && route.found;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        onScroll={(event) => {
+          const view = event.currentTarget;
+          followAnswer.current = view.scrollHeight - view.scrollTop - view.clientHeight < 120;
+        }}
+      >
         <div
           data-tour="page-content"
           className={`mx-auto flex w-full flex-col gap-5 px-4 py-6 sm:px-7 max-w-7xl ${isEmptyHome ? "flex-1 justify-center" : ""}`}
@@ -178,7 +193,9 @@ export function ChatShell() {
               {messages.map((message) => (
                 <MessageView key={message.id} message={message} onPreview={setPendingPreview} />
               ))}
-              {busy && messages.length > 0 ? (
+              {busy &&
+              messages.length > 0 &&
+              !messages.some((message) => message.stream?.status === "streaming") ? (
                 <div
                   className="flex items-center gap-2 text-base text-muted-foreground"
                   role="status"

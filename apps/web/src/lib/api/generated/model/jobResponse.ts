@@ -17,4 +17,5 @@ export interface JobResponse {
   error?: string | null;
   events?: ProgressEvent[];
   model_usage?: JobResponseModelUsage;
+  assistant_text?: string;
 }

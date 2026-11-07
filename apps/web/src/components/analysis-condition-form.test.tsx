@@ -74,7 +74,7 @@ it("does not invent a station or years for unresolved historical questions", () 
 });
 
 it.each(["market_query", "retail_lookup", "survey_link"])(
-  "opens price conditions for unresolved %s without suggesting an outing",
+  "keeps unresolved %s conditions and execution inside chat",
   (featureHint) => {
     render(
       <AnalysisConditionForm
@@ -90,9 +90,14 @@ it.each(["market_query", "retail_lookup", "survey_link"])(
       />
     );
     expect(screen.queryByRole("button", { name: "나들이 조건 선택" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "가격 조건 선택" }));
-    expect(openFeature).toHaveBeenCalledExactlyOnceWith("가격 조사");
-    expect(confirmSpec).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "판매가" }));
+    fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+    expect(openFeature).not.toHaveBeenCalled();
+    expect(confirmSpec).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ operation: "retail_lookup", price_channel: "retail" }),
+      expect.any(String),
+      null
+    );
   }
 );
 
@@ -110,7 +115,57 @@ it("preserves an already resolved wholesale specification", () => {
       prepare={{ classification: "public", feature: "price", needs_confirmation: true, spec }}
     />
   );
-  fireEvent.click(screen.getByRole("button", { name: "이 조건으로 조회" }));
-  expect(confirmSpec).toHaveBeenCalledExactlyOnceWith(spec, "이 조건으로 조회");
+  fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+  expect(confirmSpec).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining(spec),
+    expect.any(String),
+    null
+  );
+  expect(openFeature).not.toHaveBeenCalled();
+});
+
+it("resolves missing outing conditions inside chat while preserving the parsed day", () => {
+  render(
+    <AnalysisConditionForm
+      prepare={{
+        classification: "public",
+        feature: "outing",
+        needs_confirmation: true,
+        form: { feature_hint: "outing", initial_values: { date: "2026-11-08" } },
+      }}
+    />
+  );
+  expect(screen.getByRole("button", { name: "지역 1 날짜" }).textContent).toContain("2026-11-08");
+  expect(
+    (screen.getByRole("button", { name: "이 조건으로 날씨 조회" }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  fireEvent.change(screen.getByRole("combobox", { name: "지역" }), { target: { value: "aewol" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "시각" }), { target: { value: "09:00" } });
+  fireEvent.click(screen.getByRole("button", { name: "이 조건으로 날씨 조회" }));
+  expect(confirmSpec).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      operation: "outing_compare",
+      source_ids: ["open_meteo"],
+      candidates: [{ location_id: "aewol", date: "2026-11-08", time_slot: "09:00" }],
+    }),
+    expect.any(String),
+    null
+  );
+  expect(openFeature).not.toHaveBeenCalled();
+});
+
+it("uses inline weather questions for an unresolved generic request without menu shortcuts", () => {
+  render(
+    <AnalysisConditionForm
+      prepare={{
+        classification: "public",
+        needs_confirmation: true,
+        form: { questions: ["어느 지역의 날씨를 볼까요?"] },
+      }}
+    />
+  );
+  expect(screen.getByRole("form", { name: "채팅 나들이 조건" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "나들이 조건 선택" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "가격 조사" })).toBeNull();
   expect(openFeature).not.toHaveBeenCalled();
 });

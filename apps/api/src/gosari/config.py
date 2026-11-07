@@ -72,10 +72,10 @@ class Settings(BaseSettings):
     # 캐시
     response_cache_enabled: bool = True
     embedding_model_path: str = "intfloat/multilingual-e5-small"
-    embedding_revision: str = "main"
+    embedding_revision: str = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
 
     # 캐시 도메인 — 검증된 문턱값·TTL만 허용. 미설정 시 semantic 조회 우회.
-    domain_threshold_config: str | None = "0.90"
+    domain_threshold_config: str | None = "0.95"
     freshness_policy_config: str | None = None
 
     # 지도

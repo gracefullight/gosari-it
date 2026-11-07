@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider, useAtomValue } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,12 +19,16 @@ function PageTarget() {
 }
 function mount(onEndSession = vi.fn()) {
   return render(
-    <Provider>
-      <OnboardingProvider>
-        <MainSideNavigation open onToggle={vi.fn()} onEndSession={onEndSession} />
-        <PageTarget />
-      </OnboardingProvider>
-    </Provider>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <Provider>
+        <OnboardingProvider>
+          <MainSideNavigation open onToggle={vi.fn()} onEndSession={onEndSession} />
+          <PageTarget />
+        </OnboardingProvider>
+      </Provider>
+    </QueryClientProvider>
   );
 }
 beforeEach(() => {

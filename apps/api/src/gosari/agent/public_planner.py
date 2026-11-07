@@ -7,6 +7,179 @@ from typing import Any
 
 from gosari.sources.weather import JEJU_LOCATIONS, korea_today
 
+PRICE_WORDS = (
+    "가격",
+    "얼마",
+    "시세",
+    "도매",
+    "정산",
+    "소매",
+    "조사가",
+    "상품",
+    "판매가",
+    "산림조합",
+    "탐나오",
+    "오아시스",
+)
+
+
+def is_price_question(text: str) -> bool:
+    return any(word in text for word in PRICE_WORDS)
+
+
+def price_initial_values(text: str) -> dict[str, Any]:
+    """정형 공개 조건만 추출한다. 원문/개인 별칭은 반환하지 않는다."""
+    values: dict[str, Any] = {}
+    fresh = bool(re.search(r"생\s*고사리", text))
+    dried = bool(re.search(r"건\s*고사리|말린\s*고사리|건조\s*고사리", text))
+    if fresh != dried:
+        values["fresh_or_dried"] = "생고사리" if fresh else "건고사리"
+    elif fresh and dried:
+        values["fresh_or_dried"] = ""
+    if "제주" in text:
+        values["origin_filter"] = "제주"
+    explicit_dates = re.findall(r"\d{4}-\d{2}-\d{2}", text)
+    days: list[date] = []
+    if explicit_dates:
+        try:
+            days = [date.fromisoformat(day) for day in explicit_dates]
+        except ValueError:
+            days = []
+    else:
+        relative = re.findall(r"오늘|어제|그제", text)
+        days = [
+            korea_today() - timedelta(days={"오늘": 0, "어제": 1, "그제": 2}[day])
+            for day in relative
+        ]
+    if 1 <= len(days) <= 2 and days[0] <= days[-1] <= korea_today():
+        values["settlement_date"] = days[0].isoformat()
+        values["settlement_date_end"] = days[-1].isoformat()
+    markets = re.findall(r"시장\s*코드\s*[:：]?\s*(\d{6})(?!\d)", text)  # noqa: RUF001
+    if not markets and any(
+        name in text for name in ("서울가락", "서울 가락", "가락시장", "가락 시장")
+    ):
+        markets = ["110001"]
+    if markets:
+        values["market_ids"] = list(dict.fromkeys(markets))
+    weight = re.search(r"(\d+(?:\.\d+)?)\s*(kg|g)(?=$|[^a-zA-Z])", text, re.IGNORECASE)
+    if weight:
+        values["package_weight_unit"] = f"{weight[1]} {weight[2].lower()}"
+        bundle = re.search(r"50\s*g\s*[xX×]\s*2\s*봉", text)  # noqa: RUF001
+        if bundle:
+            values["product_option"] = "50g X 2봉"
+            values.pop("package_weight_unit", None)
+    stage = [name for name in ("생산지", "도매지", "소비지") if name in text]
+    if len(stage) == 1:
+        values["survey_stage"] = stage[0]
+    return values
+
+
+def _price_spec(text: str) -> dict[str, Any] | None:
+    retail = any(
+        word in text for word in ("소매", "상품", "판매가", "탐나오", "오아시스", "쇼핑몰")
+    )
+    survey = "조사가" in text or ("산림조합" in text and not retail)
+    wholesale = bool(re.search(r"도매(?!지)|정산", text))
+    channels = [
+        name
+        for name, enabled in (("retail", retail), ("survey", survey), ("wholesale", wholesale))
+        if enabled
+    ]
+    if len(channels) != 1:
+        return None
+    channel = channels[0]
+    operation, source = {
+        "retail": ("retail_lookup", "retail_sample"),
+        "survey": ("survey_link", "forestinfo"),
+        "wholesale": ("market_query", "at_settlement"),
+    }[channel]
+    values = price_initial_values(text)
+    if channel != "wholesale":
+        for field in ("settlement_date", "settlement_date_end", "market_ids"):
+            values.pop(field, None)
+    sources = [source]
+    if channel == "retail":
+        sources += [
+            source_id
+            for label, source_id in (("탐나오", "tamnao"), ("오아시스", "oasis"))
+            if label in text
+        ]
+    return {"operation": operation, "source_ids": sources, "price_channel": channel, **values}
+
+
+def continue_public_price(previous: dict[str, Any], text: str) -> dict[str, Any] | None:
+    if previous.get("operation") not in ("retail_lookup", "survey_link", "market_query"):
+        return None
+    changes = price_initial_values(text)
+    if not changes:
+        return None
+    # Only recognized public selectors are inherited; no raw utterance is retained or sent.
+    spec = {key: value for key, value in previous.items() if key != "contains_personal_hint"}
+    explicit = _price_spec(text) if is_price_question(text) else None
+    if explicit:
+        spec.update(explicit)
+    elif changes.get("survey_stage"):
+        spec.update(operation="survey_link", source_ids=["forestinfo"], price_channel="survey")
+    if "package_weight_unit" in changes:
+        spec.pop("product_option", None)
+    if "product_option" in changes:
+        spec.pop("package_weight_unit", None)
+    spec.update(changes)
+    if spec.get("operation") != "market_query":
+        for key in ("settlement_date", "settlement_date_end", "market_ids"):
+            spec.pop(key, None)
+    if spec.get("operation") == "survey_link":
+        for key in ("product_id", "product_option", "package_weight_unit"):
+            if key not in changes:
+                spec.pop(key, None)
+    return spec
+
+
+def public_dialogue_intent(text: str) -> dict[str, Any]:
+    intent = "service_help"
+    for name, words in (
+        ("greeting", ("안녕", "반가", "하이")),
+        ("current_date", ("오늘 날짜", "오늘날짜", "무슨 요일", "몇일", "며칠")),
+        ("preparation_help", ("준비물", "초보", "준비해야")),
+        ("summarize", ("요약", "설명", "정리")),
+        ("compare", ("비교", "차이")),
+    ):
+        if any(word in text for word in words):
+            intent = name
+            break
+    vocabulary = ("고사리", "날씨", "가격", "나들이", "수첩", "나눔", "생산지", "도매지", "소비지")
+    result: dict[str, Any] = {
+        "intent": intent,
+        "topics": [word for word in vocabulary if word in text],
+    }
+    if intent == "current_date":
+        result["today"] = korea_today().isoformat()
+    return result
+
+
+def outing_initial_values(text: str) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    days: set[str] = set()
+    for raw in re.findall(r"\d{4}-\d{2}-\d{2}|오늘|내일|모레", text):
+        try:
+            day = (
+                (korea_today() + timedelta(days={"오늘": 0, "내일": 1, "모레": 2}[raw]))
+                if raw in ("오늘", "내일", "모레")
+                else date.fromisoformat(raw)
+            )
+            days.add(day.isoformat())
+        except ValueError:
+            continue
+    if len(days) == 1:
+        values["date"] = next(iter(days))
+    locations = [identifier for identifier, name, *_ in JEJU_LOCATIONS if name in text]
+    if len(locations) == 1:
+        values["location_id"] = locations[0]
+    hours = _hours(text)
+    if hours and len(set(hours)) == 1:
+        values["time_slot"] = hours[0]
+    return values
+
 
 def public_plan(text: str) -> dict[str, Any] | None:
     public_names = [row[1] for row in JEJU_LOCATIONS] + ["선흘", "제주"]
@@ -17,26 +190,8 @@ def public_plan(text: str) -> dict[str, Any] | None:
     names = [match.group() for match in regions]
     years = sorted({int(y) for y in re.findall(r"(?:19|20)\d{2}", text)})
     dates = re.findall(r"\d{4}-\d{2}-\d{2}", text)
-    if any(word in text for word in ("가격", "얼마", "도매", "소매", "조사가", "상품")):
-        if "도매" in text or "정산" in text:
-            return {
-                "operation": "market_query",
-                "source_ids": ["at_settlement"],
-                "price_channel": "wholesale",
-            }
-        if "조사가" in text or "산림조합" in text:
-            return {
-                "operation": "survey_link",
-                "source_ids": ["forestinfo"],
-                "price_channel": "survey",
-            }
-        if "소매" in text or "상품" in text or "판매" in text:
-            return {
-                "operation": "retail_lookup",
-                "source_ids": ["retail_sample"],
-                "price_channel": "retail",
-            }
-        return None
+    if is_price_question(text):
+        return _price_spec(text)
     if names and len(years) >= 2 and not dates:
         period = _history_period(text, years)
         if period is None or len(set(names)) != 1:

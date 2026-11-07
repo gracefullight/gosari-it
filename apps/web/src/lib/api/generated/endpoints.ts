@@ -26,6 +26,8 @@ import type {
 import type {
   ActionResult,
   ApiV1ActionsActionIdGetAction400,
+  ApiV1AnalysisChatChat400,
+  ApiV1AnalysisChatChatBody,
   ApiV1AnalysisJobsCreateJob400,
   ApiV1AnalysisJobsCreateJobBody,
   ApiV1AnalysisPreparePrepare400,
@@ -68,6 +70,8 @@ import type {
   ApiV1WeatherGetWeather400,
   ApiV1WeatherGetWeatherParams,
   CapabilitiesResponse,
+  ChatConfirmationResponse,
+  ChatJobResponse,
   Consent,
   ContactListResponse,
   JobResponse,
@@ -618,6 +622,113 @@ export const useApiV1SessionsCurrentEnd = <TError = unknown,
         TContext
       > => {
       return useMutation(getApiV1SessionsCurrentEndMutationOptions(options), queryClient);
+    }
+
+export type apiV1AnalysisChatChatResponse201 = {
+  data: ChatJobResponse | ChatConfirmationResponse
+  status: 201
+}
+
+export type apiV1AnalysisChatChatResponse400 = {
+  data: ApiV1AnalysisChatChat400
+  status: 400
+}
+
+export type apiV1AnalysisChatChatResponseSuccess = (apiV1AnalysisChatChatResponse201) & {
+  headers: Headers;
+};
+export type apiV1AnalysisChatChatResponseError = (apiV1AnalysisChatChatResponse400) & {
+  headers: Headers;
+};
+
+export type apiV1AnalysisChatChatResponse = (apiV1AnalysisChatChatResponseSuccess | apiV1AnalysisChatChatResponseError)
+
+export const getApiV1AnalysisChatChatUrl = () => {
+
+
+
+
+  return `/api/v1/analysis/chat`
+}
+
+/**
+ * @summary Chat
+ */
+export const apiV1AnalysisChatChat = async (apiV1AnalysisChatChatBody: ApiV1AnalysisChatChatBody, options?: Parameters<typeof customFetch>[1]): Promise<apiV1AnalysisChatChatResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<apiV1AnalysisChatChatResponse>(getApiV1AnalysisChatChatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(apiV1AnalysisChatChatBody)
+  }
+);}
+
+
+
+
+
+export const getApiV1AnalysisChatChatMutationKey = () => ['apiV1AnalysisChatChat'] as const;
+
+export const getApiV1AnalysisChatChatMutationOptions = <TError = ApiV1AnalysisChatChat400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AnalysisChatChat>>, TError,ApiV1AnalysisChatChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1AnalysisChatChat>>, TError,ApiV1AnalysisChatChatMutationVariables, TContext> => {
+
+const mutationKey = getApiV1AnalysisChatChatMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1AnalysisChatChat>>, ApiV1AnalysisChatChatMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  apiV1AnalysisChatChat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApiV1AnalysisChatChatMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1AnalysisChatChat>>>
+    export type ApiV1AnalysisChatChatMutationBody = ApiV1AnalysisChatChatBody
+    export type ApiV1AnalysisChatChatMutationError = ApiV1AnalysisChatChat400
+    export type ApiV1AnalysisChatChatMutationVariables = {data: ApiV1AnalysisChatChatBody}
+
+    /**
+ * @summary Chat
+ */
+export const useApiV1AnalysisChatChat = <TError = ApiV1AnalysisChatChat400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AnalysisChatChat>>, TError,ApiV1AnalysisChatChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof apiV1AnalysisChatChat>>,
+        TError,
+        ApiV1AnalysisChatChatMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApiV1AnalysisChatChatMutationOptions(options), queryClient);
     }
 
 export type apiV1AnalysisJobsCreateJobResponse201 = {

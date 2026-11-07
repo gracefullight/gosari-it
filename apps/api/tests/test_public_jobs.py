@@ -143,17 +143,34 @@ def test_live_outing_uses_each_date_and_hour_and_partial_failure(monkeypatch):
     assert "방풍 겉옷" in result.result["preparation_checklist"]
 
 
-def test_scope_fingerprint_covers_candidates_and_price_settlement(monkeypatch):
+def test_scope_fingerprint_covers_candidates_and_price_settlement():
     from gosari.cache.semantic import condition_fingerprint
 
-    base = {"operation": "market_query", "settlement_date": "2026-04-12", "package_code": "kg"}
+    base = {
+        "operation": "market_query",
+        "source_ids": ["at_settlement"],
+        "settlement_date": "2026-04-12",
+        "package_code": "01",
+        "package_weight_unit": "1kg",
+    }
     assert condition_fingerprint(base) != condition_fingerprint(
         {**base, "settlement_date": "2026-04-13"}
     )
-    assert condition_fingerprint(base) != condition_fingerprint({**base, "package_code": "g"})
-    assert condition_fingerprint(
-        {"candidates": [{"target_date": "2026-11-08"}]}
-    ) != condition_fingerprint({"candidates": [{"target_date": "2026-11-09"}]})
+    assert condition_fingerprint(base) != condition_fingerprint({**base, "package_code": "02"})
+    assert condition_fingerprint(base) != condition_fingerprint(
+        {**base, "package_weight_unit": "500g"}
+    )
+    outing = {
+        "operation": "outing_compare",
+        "source_ids": ["open_meteo"],
+        "candidates": [{"location_id": "jeju", "date": "2026-11-08", "time_slot": "09:00"}],
+    }
+    assert condition_fingerprint(outing) != condition_fingerprint(
+        {
+            **outing,
+            "candidates": [{"location_id": "jeju", "date": "2026-11-09", "time_slot": "09:00"}],
+        }
+    )
 
 
 def test_institution_denial_uses_disclosed_archive_without_repeated_auth_calls(monkeypatch):
