@@ -1,6 +1,8 @@
 """Litestar 앱 팩토리 — SRS 모듈 경로 gosari.app:create_app."""
 
+import json
 import mimetypes
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,11 +17,14 @@ from litestar.types import ASGIApp, Message, Receive, Scope, Send
 
 from gosari.api.analysis import AnalysisController, JobsController
 from gosari.api.consent import ActionsController, ConsentsController
+from gosari.api.contacts import ContactsController
 from gosari.api.evidence import EvidenceController
 from gosari.api.health import CapabilitiesController, HealthController
 from gosari.api.personal import NotebookController, RegionsController, ShareController
+from gosari.api.personal_search import PersonalSearchController
 from gosari.api.sessions import SessionsController
 from gosari.api.stations import MapsController, StationsController
+from gosari.api.weather import WeatherController
 from gosari.config import get_settings
 from gosari.db import close_pool, open_pool
 from gosari.domain.errors import GosariError
@@ -131,6 +136,54 @@ class SPAStaticMiddleware:
         await send(body)
 
 
+class LocalHostMiddleware:
+    """Validate Host before API routing, including reads and SPA/static responses."""
+
+    _host = re.compile(r"(?:localhost|127\.0\.0\.1|0\.0\.0\.0|app|\[::1\])(?::([0-9]+))?", re.I)
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        hosts = [value for key, value in scope.get("headers", []) if key.lower() == b"host"]
+        allowed = False
+        if len(hosts) == 1:
+            try:
+                match = self._host.fullmatch(hosts[0].decode("ascii"))
+                allowed = match is not None and (
+                    match.group(1) is None or 1 <= int(match.group(1)) <= 65535
+                )
+            except UnicodeDecodeError, ValueError:
+                pass
+        if allowed:
+            await self.app(scope, receive, send)
+            return
+        content = json.dumps(
+            {"error": "ORIGIN_DENIED", "message": "허용되지 않은 요청 출처입니다."},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 403,
+                "headers": [
+                    (b"content-type", b"application/json; charset=utf-8"),
+                    (b"content-length", str(len(content)).encode()),
+                    (b"cache-control", b"no-store"),
+                ],
+            }
+        )
+        body: Message = {
+            "type": "http.response.body",
+            "body": b"" if scope["method"] == "HEAD" else content,
+            "more_body": False,
+        }
+        await send(body)
+
+
 def create_app() -> Litestar:
     route_handlers = [
         HealthController,
@@ -144,8 +197,11 @@ def create_app() -> Litestar:
         RegionsController,
         ShareController,
         ConsentsController,
+        ContactsController,
+        PersonalSearchController,
         ActionsController,
         EvidenceController,
+        WeatherController,
     ]
     ui_candidates = [
         Path("/app/web-dist"),
@@ -167,4 +223,5 @@ def create_app() -> Litestar:
     if ui_dir is not None:
         # Litestar 앱 미들웨어는 매칭된 라우트에만 적용되므로 ASGI 핸들러를 직접 래핑한다.
         app.asgi_handler = SPAStaticMiddleware(app.asgi_handler, ui_dir=ui_dir)
+    app.asgi_handler = LocalHostMiddleware(app.asgi_handler)
     return app

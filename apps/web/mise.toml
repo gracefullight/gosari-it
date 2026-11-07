@@ -6,3 +6,4 @@ lint = { run = "bun run lint", description = "Lint Web" }
 format = { run = "bun run format", description = "Format Web" }
 test = { run = "bun run test", description = "Test Web" }
 typecheck = { run = "bun run typecheck", description = "Type check Web" }
+"gen:api" = { run = "bun run gen:api", description = "Generate API hooks from OpenAPI" }

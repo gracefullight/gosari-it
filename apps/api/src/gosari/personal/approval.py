@@ -8,13 +8,14 @@ import hashlib
 import json
 import unicodedata
 from collections.abc import Callable
+from copy import deepcopy
 from datetime import timedelta
 from typing import Any
 
 from gosari.config import get_settings
 from gosari.domain.errors import GosariError
 from gosari.personal import ActionResult, Consent, Preview
-from gosari.sessions import Session, new_id, utcnow
+from gosari.sessions import Session, get_session_store, new_id, utcnow
 
 CANONICAL_SCHEMA_VERSION = "canonical-v1"
 
@@ -95,6 +96,11 @@ def create_preview(
             expires_at=now + timedelta(seconds=settings.preview_ttl),
         )
         session.previews[preview.preview_id] = preview
+        try:
+            get_session_store().save(session)
+        except Exception:
+            del session.previews[preview.preview_id]
+            raise
         return preview
 
 
@@ -129,6 +135,12 @@ def issue_consent(
         )
         preview.state = "confirmed"
         session.consents[consent.consent_id] = consent
+        try:
+            get_session_store().save(session)
+        except Exception:
+            del session.consents[consent.consent_id]
+            preview.state = "preview"
+            raise
         return consent
 
 
@@ -154,20 +166,9 @@ def commit(
         if preview is None:
             raise GosariError("RESOURCE_NOT_FOUND")
 
-        cmd_hash = command_hash(consent_id, preview)
-        # 이미 성공한 동일 명령은 기존 결과만 반환 — 변경을 다시 실행하지 않는다.
-        for existing in session.actions.values():
-            if existing.consent_id == consent_id and existing.canonical_command_hash == cmd_hash:
-                if existing.state == "committed":
-                    return existing
-                raise GosariError("ACTION_NOT_ALLOWED", {"reason": "PREVIOUS_ATTEMPT_FAILED"})
-
-        if consent.used:
-            raise GosariError("CONSENT_REUSED_DIFFERENTLY")
-        if utcnow() > consent.expires_at:
-            raise GosariError("PREVIEW_EXPIRED")
         if (
-            consent.action != action
+            consent.preview_id != preview_id
+            or consent.action != action
             or consent.target_id != target_id
             or consent.target_revision != target_revision
             or consent.preview_hash != hash_from_client
@@ -178,10 +179,49 @@ def commit(
         ):
             raise GosariError("PREVIEW_MISMATCH")
 
+        cmd_hash = command_hash(consent_id, preview)
+        # 이미 성공한 동일 명령은 기존 결과만 반환 — 변경을 다시 실행하지 않는다.
+        for existing in session.actions.values():
+            if existing.consent_id == consent_id and existing.canonical_command_hash == cmd_hash:
+                if existing.state == "committed":
+                    return existing
+                raise GosariError("ACTION_NOT_ALLOWED", {"reason": "PREVIOUS_ATTEMPT_FAILED"})
+
+        if consent.used:
+            raise GosariError("CONSENT_REUSED_DIFFERENTLY")
+        if utcnow() > consent.expires_at or utcnow() > preview.expires_at:
+            raise GosariError("PREVIEW_EXPIRED")
+
+        collections = (
+            "notebook",
+            "contacts",
+            "regions",
+            "share_drafts",
+            "previews",
+            "consents",
+            "actions",
+        )
+        before = {name: deepcopy(getattr(session, name)) for name in collections}
         consent.used = True
         try:
             result_id, resulting_revision = executor(session, preview)
+            result = ActionResult(
+                action_id=new_id("action"),
+                consent_id=consent_id,
+                canonical_command_hash=cmd_hash,
+                state="committed",
+                result_id=result_id,
+                resulting_revision=resulting_revision,
+                committed_at=utcnow(),
+            )
+            session.actions[result.action_id] = result
+            preview.state = "committed"
+            get_session_store().save(session)
         except GosariError as exc:
+            for name, value in before.items():
+                setattr(session, name, value)
+            if exc.code == "DATABASE_UNAVAILABLE":
+                raise
             failure = ActionResult(
                 action_id=new_id("action"),
                 consent_id=consent_id,
@@ -190,17 +230,11 @@ def commit(
                 safe_error=exc.code,
             )
             session.actions[failure.action_id] = failure
-            preview.state = "failed"
+            session.previews[preview_id].state = "failed"
+            session.consents[consent_id].used = True
             raise
-        result = ActionResult(
-            action_id=new_id("action"),
-            consent_id=consent_id,
-            canonical_command_hash=cmd_hash,
-            state="committed",
-            result_id=result_id,
-            resulting_revision=resulting_revision,
-            committed_at=utcnow(),
-        )
-        session.actions[result.action_id] = result
-        preview.state = "committed"
+        except Exception:
+            for name, value in before.items():
+                setattr(session, name, value)
+            raise
         return result

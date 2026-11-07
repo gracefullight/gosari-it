@@ -9,7 +9,7 @@ def main() -> int:
         if response.status_code != 200:
             return 1
         data = response.json()
-        return 0 if data.get("status") in ("ready", "limited") else 1
+        return 0 if data.get("status") == "ready" and data.get("database") == "ok" else 1
     except Exception:
         return 1
 

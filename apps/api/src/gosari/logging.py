@@ -18,6 +18,8 @@ def redact(value: str) -> str:
 
 def configure_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

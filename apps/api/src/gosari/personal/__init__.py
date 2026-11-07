@@ -15,6 +15,9 @@ class NotebookEntry(BaseModel):
     activity_text: str
     amount_value: Decimal | None = None
     amount_unit: str | None = None
+    location_address: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
+    longitude: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
     private_region_id: str | None = None
     public_evidence_ids: list[str] = Field(default_factory=list)
     created_at: datetime
@@ -25,20 +28,36 @@ class PrivateRegion(BaseModel):
     region_id: str
     revision: int = 1
     kind: Literal["existing", "interest"]
+    visited_on: date | None = None
     public_area_code: str | None = None
     coarse_grid: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
+    longitude: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
     local_alias: str
     selected_station_mapping_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
 
+class PersonalContact(BaseModel):
+    contact_id: str
+    revision: int = 1
+    name: str
+    relationship: str
+    notes: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
 class ShareItem(BaseModel):
+    contact_id: str | None = None
     recipient_alias: str
     amount_value: Decimal
     amount_unit: str
     planned_delivery: str | None = None
     optional_role_note: str | None = None
+    occurred_on: date | None = None
+    status: Literal["planned", "delivered"] = "planned"
 
 
 class ShareDraft(BaseModel):

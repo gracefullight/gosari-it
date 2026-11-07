@@ -21,10 +21,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/LiveStatus"
                 }
               }
             }
@@ -44,8 +41,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -65,8 +61,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
                 }
               }
             }
@@ -86,8 +81,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/SessionCreated"
                 }
               }
             }
@@ -107,8 +101,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/SessionClosed"
                 }
               }
             }
@@ -139,8 +132,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobResponse"
                 }
               }
             }
@@ -203,14 +195,13 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "Document created, URL follows",
+          "200": {
+            "description": "Request fulfilled, document follows",
             "headers": {},
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/PrepareResponse"
                 }
               }
             }
@@ -279,8 +270,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobResponse"
                 }
               }
             }
@@ -416,8 +406,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobResponse"
                 }
               }
             }
@@ -475,8 +464,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ResultEnvelope"
                 }
               }
             }
@@ -577,8 +565,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionResult"
                 }
               }
             }
@@ -668,8 +655,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/NotebookEntry"
                 }
               }
             }
@@ -804,8 +790,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/NotebookListResponse"
                 }
               }
             }
@@ -874,8 +859,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/PreviewResponse"
                 }
               }
             }
@@ -944,8 +928,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/NotebookRecallResponse"
                 }
               }
             }
@@ -1014,8 +997,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionResult"
                 }
               }
             }
@@ -1073,8 +1055,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/RegionListResponse"
                 }
               }
             }
@@ -1105,8 +1086,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/PreviewResponse"
                 }
               }
             }
@@ -1175,8 +1155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionResult"
                 }
               }
             }
@@ -1255,8 +1234,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShareDraftListResponse"
                 }
               }
             }
@@ -1287,8 +1265,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/SharePreviewResponse"
                 }
               }
             }
@@ -1357,8 +1334,233 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/Consent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/contacts/commit": {
+      "post": {
+        "summary": "Commit",
+        "operationId": "ApiV1ContactsCommitCommit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/contacts": {
+      "get": {
+        "summary": "ListContacts",
+        "operationId": "ApiV1ContactsListContacts",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/contacts/prepare": {
+      "post": {
+        "summary": "Prepare",
+        "operationId": "ApiV1ContactsPreparePrepare",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/personal/search": {
+      "post": {
+        "summary": "Search",
+        "operationId": "ApiV1PersonalSearchSearch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSearchResponse"
                 }
               }
             }
@@ -1427,8 +1629,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionResult"
                 }
               }
             }
@@ -1544,9 +1745,1503 @@
         },
         "deprecated": false
       }
+    },
+    "/api/v1/weather": {
+      "get": {
+        "summary": "GetWeather",
+        "operationId": "ApiV1WeatherGetWeather",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
     }
   },
   "components": {
-    "schemas": {}
+    "schemas": {
+      "ActionResult": {
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "consent_id": {
+            "type": "string"
+          },
+          "canonical_command_hash": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "committed",
+              "failed"
+            ]
+          },
+          "result_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resulting_revision": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "committed_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "canonical_command_hash",
+          "consent_id",
+          "state"
+        ],
+        "title": "ActionResult"
+      },
+      "CacheCapabilities": {
+        "properties": {
+          "response_cache": {
+            "type": "boolean"
+          },
+          "semantic": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response_cache",
+          "semantic"
+        ],
+        "title": "CacheCapabilities"
+      },
+      "CacheResolution": {
+        "type": "string",
+        "enum": [
+          "exact_hit",
+          "semantic_hit",
+          "miss",
+          "bypass"
+        ],
+        "title": "CacheResolution",
+        "default": "bypass"
+      },
+      "CapabilitiesResponse": {
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "runtime_mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "replay",
+              "limited"
+            ]
+          },
+          "map": {
+            "$ref": "#/components/schemas/MapCapabilities"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/LlmCapabilities"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheCapabilities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cache",
+          "files",
+          "llm",
+          "map",
+          "profile",
+          "runtime_mode",
+          "sources"
+        ],
+        "title": "CapabilitiesResponse"
+      },
+      "Consent": {
+        "properties": {
+          "consent_id": {
+            "type": "string"
+          },
+          "preview_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_revision": {
+            "type": "integer"
+          },
+          "preview_hash": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decision": {
+            "type": "string",
+            "const": "confirm",
+            "default": "confirm"
+          },
+          "used": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "consent_id",
+          "expires_at",
+          "issued_at",
+          "preview_hash",
+          "preview_id",
+          "target_id",
+          "target_revision"
+        ],
+        "title": "Consent"
+      },
+      "ContactListResponse": {
+        "properties": {
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalContact"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contacts"
+        ],
+        "title": "ContactListResponse"
+      },
+      "DataStatus": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "partial",
+          "no_data",
+          "conflict",
+          "needs_confirmation",
+          "unavailable"
+        ],
+        "title": "DataStatus"
+      },
+      "JobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResultEnvelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ProgressEvent"
+            },
+            "type": "array"
+          },
+          "model_usage": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "job_id",
+          "request_id",
+          "stage"
+        ],
+        "title": "JobResponse"
+      },
+      "LinkStatus": {
+        "type": "string",
+        "enum": [
+          "not_requested",
+          "link_ready",
+          "blocked",
+          "unavailable"
+        ],
+        "title": "LinkStatus",
+        "default": "not_requested"
+      },
+      "LiveStatus": {
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "LiveStatus"
+      },
+      "LlmCapabilities": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "model"
+        ],
+        "title": "LlmCapabilities"
+      },
+      "MapCapabilities": {
+        "properties": {
+          "tiles": {
+            "type": "boolean"
+          },
+          "osm_attribution_required": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "osm_attribution_required",
+          "tiles"
+        ],
+        "title": "MapCapabilities"
+      },
+      "NotebookEntry": {
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "default": 1
+          },
+          "experience_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "companion_aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "activity_text": {
+            "type": "string"
+          },
+          "amount_value": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount_unit": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_address": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 90,
+            "minimum": -90
+          },
+          "longitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 180,
+            "minimum": -180
+          },
+          "private_region_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_text",
+          "created_at",
+          "experience_date",
+          "record_id",
+          "updated_at"
+        ],
+        "title": "NotebookEntry"
+      },
+      "NotebookListResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/NotebookEntry"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "NotebookListResponse"
+      },
+      "NotebookRecallResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/NotebookEntry"
+            },
+            "type": "array"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "entries",
+          "notice"
+        ],
+        "title": "NotebookRecallResponse"
+      },
+      "PersonalContact": {
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "default": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "default": ""
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contact_id",
+          "created_at",
+          "name",
+          "relationship",
+          "updated_at"
+        ],
+        "title": "PersonalContact"
+      },
+      "PersonalSearchItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "notebook",
+              "region",
+              "contact",
+              "share"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "date": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "snippet",
+          "title"
+        ],
+        "title": "PersonalSearchItem"
+      },
+      "PersonalSearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "default": 20
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "PersonalSearchRequest"
+      },
+      "PersonalSearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hybrid",
+              "keyword"
+            ]
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalSearchItem"
+            },
+            "type": "array"
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer",
+          "items",
+          "mode",
+          "query"
+        ],
+        "title": "PersonalSearchResponse"
+      },
+      "PrepareResponse": {
+        "properties": {
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "personal"
+            ]
+          },
+          "feature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "type": "boolean"
+          },
+          "spec": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "form": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "classification",
+          "needs_confirmation"
+        ],
+        "title": "PrepareResponse"
+      },
+      "PreviewResponse": {
+        "properties": {
+          "preview_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_revision": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "display_payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "preview_hash": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action_status": {
+            "type": "string",
+            "const": "preview",
+            "default": "preview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "display_payload",
+          "expires_at",
+          "preview_hash",
+          "preview_id",
+          "schema_version",
+          "target_id",
+          "target_revision"
+        ],
+        "title": "PreviewResponse"
+      },
+      "PrivateRegion": {
+        "properties": {
+          "region_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "default": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "existing",
+              "interest"
+            ]
+          },
+          "visited_on": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_area_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coarse_grid": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 90,
+            "minimum": -90
+          },
+          "longitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 180,
+            "minimum": -180
+          },
+          "local_alias": {
+            "type": "string"
+          },
+          "selected_station_mapping_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "kind",
+          "local_alias",
+          "region_id",
+          "updated_at"
+        ],
+        "title": "PrivateRegion"
+      },
+      "ProgressEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_units": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_units": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit_kind": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_message": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "job_id",
+          "stage",
+          "timestamp"
+        ],
+        "title": "ProgressEvent"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "external_requests": {
+            "type": "boolean"
+          },
+          "llm": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "database",
+          "external_requests",
+          "llm",
+          "profile",
+          "status"
+        ],
+        "title": "ReadinessResponse"
+      },
+      "RegionListResponse": {
+        "properties": {
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/PrivateRegion"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "regions"
+        ],
+        "title": "RegionListResponse"
+      },
+      "ResultEnvelope": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "default": "result-v1"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "data_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DataStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_mode": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SourceMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action_status": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link_status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "cache_resolution": {
+            "$ref": "#/components/schemas/CacheResolution"
+          },
+          "requested_scope": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "effective_scope": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "observed_period": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "fetched_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_on": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "title": "ResultEnvelope"
+      },
+      "SessionClosed": {
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notice",
+          "status"
+        ],
+        "title": "SessionClosed"
+      },
+      "SessionCreated": {
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idle_ttl_seconds": {
+            "type": "integer"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "expires_at",
+          "idle_ttl_seconds",
+          "notice",
+          "session_id"
+        ],
+        "title": "SessionCreated"
+      },
+      "ShareDraft": {
+        "properties": {
+          "share_draft_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "default": 1
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShareItem"
+            },
+            "type": "array"
+          },
+          "message_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "editable_message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "public_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prepared_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "prepared_at",
+          "share_draft_id"
+        ],
+        "title": "ShareDraft"
+      },
+      "ShareDraftListResponse": {
+        "properties": {
+          "drafts": {
+            "items": {
+              "$ref": "#/components/schemas/ShareDraft"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drafts"
+        ],
+        "title": "ShareDraftListResponse"
+      },
+      "ShareItem": {
+        "properties": {
+          "contact_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recipient_alias": {
+            "type": "string"
+          },
+          "amount_value": {
+            "type": "string"
+          },
+          "amount_unit": {
+            "type": "string"
+          },
+          "planned_delivery": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optional_role_note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurred_on": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "delivered"
+            ],
+            "default": "planned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_unit",
+          "amount_value",
+          "recipient_alias"
+        ],
+        "title": "ShareItem"
+      },
+      "SharePreviewResponse": {
+        "properties": {
+          "preview_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_revision": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "display_payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "preview_hash": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action_status": {
+            "type": "string",
+            "const": "preview",
+            "default": "preview"
+          },
+          "display": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "display",
+          "display_payload",
+          "expires_at",
+          "preview_hash",
+          "preview_id",
+          "schema_version",
+          "target_id",
+          "target_revision"
+        ],
+        "title": "SharePreviewResponse"
+      },
+      "SourceMode": {
+        "type": "string",
+        "enum": [
+          "fetched",
+          "cache",
+          "replay",
+          "link",
+          "permitted_file"
+        ],
+        "title": "SourceMode"
+      },
+      "WeatherLocation": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "temperature_c": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_min_c": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_max_c": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precipitation_probability": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "clear",
+              "cloudy",
+              "rain",
+              "snow",
+              "unknown"
+            ],
+            "default": "unknown"
+          },
+          "forecast_at": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "forecast_at",
+          "id",
+          "latitude",
+          "longitude",
+          "name"
+        ],
+        "title": "WeatherLocation"
+      },
+      "WeatherResponse": {
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "date": {
+            "type": "string"
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherLocation"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string",
+            "default": "Open-Meteo"
+          },
+          "source_url": {
+            "type": "string",
+            "default": "https://open-meteo.com/"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "forecast",
+              "historical"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          },
+          "min_date": {
+            "type": "string"
+          },
+          "max_date": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "kind",
+          "locations",
+          "max_date",
+          "min_date",
+          "status",
+          "updated_at"
+        ],
+        "title": "WeatherResponse"
+      }
+    }
   }
 }

@@ -51,6 +51,7 @@ hk = "2.7.0"
 dev = { depends = ["//apps/api:dev", "//apps/web:dev"], description = "Start all services" }
 format = { depends = ["//apps/api:format", "//apps/web:format"], description = "Format all apps" }
 "gen:openapi" = { depends = ["//apps/api:gen:openapi"], description = "Generate OpenAPI schema" }
+"gen:api" = { depends = ["//apps/api:gen:openapi"], run = [{ tasks = ["//apps/web:gen:api"] }], description = "Generate OpenAPI schema and API clients" }
 "infra:down" = { depends = ["//apps/api:infra:down"], description = "Stop local infrastructure" }
 "infra:up" = { depends = ["//apps/api:infra:up"], description = "Start local infrastructure" }
 install = { run = ["bun install", "uv sync --all-packages"], description = "Install workspace dependencies" }

@@ -1,7 +1,7 @@
 """SRS §8.5 공통 결과 Envelope (result-v1)."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -38,3 +38,43 @@ class ProgressEvent(BaseModel):
     total_units: int | None = None
     unit_kind: str | None = None
     safe_message: str = ""
+
+
+class JobResponse(BaseModel):
+    """SRS §8.2 작업 상태 응답 — Job의 공개 직렬화 형태."""
+
+    job_id: str
+    request_id: str
+    stage: str
+    created_at: datetime
+    result: ResultEnvelope | None = None
+    error: str | None = None
+    events: list[ProgressEvent] = Field(default_factory=list)
+    model_usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class PrepareResponse(BaseModel):
+    """SRS §4.1 요청 분류·조건 확인 응답. 원천 호출·개인 변경 전 단계."""
+
+    classification: Literal["public", "personal"]
+    feature: str | None = None
+    needs_confirmation: bool
+    spec: dict[str, Any] | None = None
+    form: dict[str, Any] | None = None
+
+
+class SessionCreated(BaseModel):
+    """세션 생성 응답. 개인 데이터는 세션 메모리 한정."""
+
+    session_id: str
+    created_at: datetime
+    expires_at: datetime
+    idle_ttl_seconds: int
+    notice: str
+
+
+class SessionClosed(BaseModel):
+    """세션 종료 응답."""
+
+    status: str
+    notice: str

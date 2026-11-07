@@ -9,10 +9,11 @@ from gosari.domain.errors import GosariError
 from gosari.sessions import Session, get_session_store
 
 SESSION_COOKIE = "gosari_session"
+SESSION_HEADER = "x-gosari-session"
 
 
 def current_session(request: Request[Any, Any, Any]) -> Session:
-    session_id = request.cookies.get(SESSION_COOKIE)
+    session_id = request.cookies.get(SESSION_COOKIE) or request.headers.get(SESSION_HEADER)
     return get_session_store().get(session_id)
 
 

@@ -4,8 +4,8 @@
 
 - **앱 이미지**: Node 26에서 Vite 정적 UI 빌드 → Python 3.14 slim 런타임.
   Litestar/Uvicorn이 정적 UI(`/`)와 API(`/api/v1`)를 같은 포트(8765)에서 서빙한다.
-- **DB**: PostgreSQL 18 + pgvector. 공개 자료·응답 캐시만 저장한다.
-  개인 수첩·나눔·지역은 앱 프로세스 RAM(세션) 한정이며 DB·WAL·백업에 들어가지 않는다.
+- **DB**: PostgreSQL 18 + pgvector. 공개 자료·응답 캐시와 사용자별 수첩·지역·지인·나눔을 구분해 저장한다.
+  개인 변경과 승인 결과는 같은 트랜잭션으로 보관하며 재시작 후 복원한다.
 - **역할 분리**: `db-init`가 관리자 권한으로 vector 확장·앱 역할·migration을 수행하고,
   앱 역할(`gosari_app`)에는 DDL/role 관리 권한을 주지 않는다.
 
@@ -39,23 +39,25 @@ mise run up             # doctor → init → build → db → db-init → app �
 
 ## 4. 외부 요청 게이트
 
-`EXTERNAL_REQUESTS_ENABLED=false`(기본)이면 서버측 게이트가 모든 원천·모델 전송을 차단한다.
-이 값은 앱 검사이지 방화벽이 아니다. 지도 타일· geocoding 등 브라우저 요청도
-`TILE_PROVIDER_CONFIG` 미설정 시 발생하지 않는다(관측소 목록으로 대체).
+`EXTERNAL_REQUESTS_ENABLED=false`(기본)이면 서버측 게이트가 기관 분석과 모델 전송을 차단한다.
+이 값은 방화벽 설정이 아니다. 제주 지도용 Open-Meteo 조회, 지도 타일·주소 검색은 각 화면에서 별도로 요청한다.
 
-라이브 전환 전 확인: 기관별 이용조건·활용신청·쿼터, 센터 네트워크 허용, 키 유효성.
+기관별 활용신청·쿼터·키 유효성을 확인한다. 현재 개발 환경의 제주데이터허브는 한국 네트워크에서 실조회가 확인됐다.
 
 ## 5. 세션·개인정보
 
-- 개인 기록은 세션 종료·만료·프로세스 재시작 시 소실되며 복구하지 않는다.
-- worker 1·replica 1·reload 없음으로 고정한다(세션 RAM 공유 불가).
-- 이미지/설정 변경·rebuild·down은 세션을 소실시킬 수 있다.
+- 개인 기록과 연결한 공개 근거, 미리보기·동의·실행 결과는 PostgreSQL에 저장한다.
+- DB 저장 실패는 성공으로 반환하지 않고 메모리 변경을 되돌린다. 같은 승인 재시도는 중복 기록을 만들지 않는다.
+- 개인 기록 초기화는 DB 삭제에 성공한 뒤 현재 세션과 브라우저 식별자를 지운다.
+- 실행 중 작업과 세션 메모리 캐시 때문에 worker·replica는 각각1개를 유지한다. 네이티브 개발은 reload를 사용한다.
+- 세션 접속 유효기간은 `SESSION_IDLE_TTL`·`SESSION_ABSOLUTE_TTL`로 설정한다. 현재 기본값은365일이다.
 
 ## 6. 백업·갱신
 
-- 공개 DB 볼륨(`public_pgdata`)은 `down`으로 유지된다. 백업은 센터 정책 범위에서 볼륨 덤프.
+- DB 볼륨(`public_pgdata`)에는 공개 자료와 개인 기록이 함께 있으며 `down`으로 유지된다. 백업은 센터의 개인 기록 보관 정책을 확인한 뒤 수행한다.
 - 갱신: 소스 갱신 → `mise run up` (재빌드·migration). migration 실패 후 볼륨 자동 삭제 금지.
-- `reset`은 `--confirm=gosariit-local` 명시 확인 시에만 공개 볼륨을 삭제한다.
+- `reset`은 `--confirm=gosariit-local` 명시 확인 시 DB 볼륨을 삭제한다. 공개 자료와 모든 개인 기록이 삭제되며 비밀 파일은 유지된다.
+- 화면의 개인 기록 초기화는 현재 세션의 DB 행과 메모리를 삭제한다. 기존 백업·내려받은 파일·OS 임시 파일·스왑은 별도 보관·삭제 대상이며, 초기화가 저장 장치의 포렌식 삭제를 수행하는 것은 아니다. 센터 운영자는 이 항목의 보관·정리 절차를 따로 확인한다.
 
 ## 7. Windows 센터
 
@@ -70,6 +72,6 @@ mise run up             # doctor → init → build → db → db-init → app �
 |---|---|
 | doctor: daemon 연결 실패 | OrbStack/Docker Desktop 시작 |
 | 앱 limited | DB 연결·키·게이트 설정. `/api/v1/health/ready` 참조 |
-| 예보 조회 불가 | 라이브 모드 + KMA 키 필요. 재생 표본 없음 |
+| 예보 조회 불가 | Open-Meteo 연결·조회 날짜 확인. 기관 자료는 해당 서비스 활용신청과 인증 결과 확인 |
 | 지도 회색 | `TILE_PROVIDER_CONFIG` 미설정 → 목록 표시가 정상 |
 | 포트 충돌 | `.local/settings.env`의 APP_PORT 변경 |

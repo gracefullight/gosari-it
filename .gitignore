@@ -38,3 +38,6 @@ htmlcov/
 
 # os
 .DS_Store
+
+# oma docs generated artifacts
+docs/generated/

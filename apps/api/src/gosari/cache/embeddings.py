@@ -36,17 +36,22 @@ class EmbeddingEngine:
             if self._failed:
                 return False
             try:
+                import torch
                 from sentence_transformers import SentenceTransformer
                 from transformers import AutoTokenizer
 
+                torch.set_num_threads(2)
                 settings = get_settings()
                 self._model = SentenceTransformer(
                     settings.embedding_model_path,
                     revision=settings.embedding_revision,
                     device="cpu",
+                    local_files_only=True,
                 )
                 self._tokenizer = AutoTokenizer.from_pretrained(
-                    settings.embedding_model_path, revision=settings.embedding_revision
+                    settings.embedding_model_path,
+                    revision=settings.embedding_revision,
+                    local_files_only=True,
                 )
                 dim_fn = getattr(self._model, "get_embedding_dimension", None)
                 dim = dim_fn() if dim_fn else self._model.get_sentence_embedding_dimension()
