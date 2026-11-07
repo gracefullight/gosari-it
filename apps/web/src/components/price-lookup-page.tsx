@@ -61,6 +61,7 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
   const [channel, setChannel] = useState<PriceChannel>(initialChannel);
   const [filters, setFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
+  const [appliedLabels, setAppliedLabels] = useState<MarketOptions>(DEFAULT_OPTIONS);
   const [options, setOptions] = useState<MarketOptions>(DEFAULT_OPTIONS);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const query = useQuery(priceQueryOptions(channel, applied));
@@ -82,11 +83,14 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
       ? applied.settlement_date
       : `${applied.settlement_date}~${applied.settlement_date_end}`,
     applied.market_ids.length === 1
-      ? options.markets.find((m) => m.value === applied.market_ids[0])?.label
+      ? (appliedLabels.markets.find((m) => m.value === applied.market_ids[0])?.label ?? "1개 시장")
       : `${applied.market_ids.length}개 시장`,
     applied.fresh_or_dried,
-    options.grades.find((item) => item.value === applied.grade)?.label,
-    options.packages.find((item) => item.value === applied.package_code)?.label,
+    applied.grade &&
+      (appliedLabels.grades.find((item) => item.value === applied.grade)?.label ?? applied.grade),
+    applied.package_code &&
+      (appliedLabels.packages.find((item) => item.value === applied.package_code)?.label ??
+        applied.package_code),
     applied.package_weight_unit,
     applied.origin_filter,
   ]
@@ -142,6 +146,7 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
             onSubmit={(event) => {
               event.preventDefault();
               if (!dateInvalid && filters.market_ids.length) {
+                setAppliedLabels(options);
                 setApplied({ ...filters });
                 setFiltersOpen(false);
               }
@@ -226,6 +231,13 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
                     onChange={(event) => update("grade", event.target.value)}
                   >
                     <option value="">전체 등급</option>
+                    {filters.grade &&
+                    !options.grades.some((item) => item.value === filters.grade) ? (
+                      <option value={filters.grade}>
+                        {appliedLabels.grades.find((item) => item.value === filters.grade)?.label ??
+                          filters.grade}
+                      </option>
+                    ) : null}
                     {options.grades.map((item) => (
                       <option key={item.value} value={item.value}>
                         {item.label}
@@ -242,6 +254,13 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
                     onChange={(event) => update("package_code", event.target.value)}
                   >
                     <option value="">전체 포장</option>
+                    {filters.package_code &&
+                    !options.packages.some((item) => item.value === filters.package_code) ? (
+                      <option value={filters.package_code}>
+                        {appliedLabels.packages.find((item) => item.value === filters.package_code)
+                          ?.label ?? filters.package_code}
+                      </option>
+                    ) : null}
                     {options.packages.map((item) => (
                       <option key={item.value} value={item.value}>
                         {item.label}
@@ -367,11 +386,41 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
       ) : null}
       {cards?.length ? <PriceCardList cards={cards} /> : null}
       {query.isSuccess && !unavailable && !cards?.length && !failed?.length ? (
-        <p className="py-12 text-center text-base text-muted-foreground">
-          {channel === "wholesale"
-            ? "선택한 날짜·시장에서 조건에 맞는 거래가 없습니다."
-            : "조회된 가격이 없습니다."}
-        </p>
+        <div className="space-y-4 py-10 text-center text-base text-muted-foreground">
+          <p>
+            {channel === "wholesale"
+              ? "선택한 날짜·시장에서 조건에 맞는 거래가 없습니다."
+              : "조회된 가격이 없습니다."}
+          </p>
+          {channel === "wholesale" ? (
+            applied.grade ||
+            applied.package_code ||
+            applied.package_weight_unit ||
+            applied.origin_filter ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const cleared = {
+                    ...applied,
+                    grade: "",
+                    package_code: "",
+                    package_weight_unit: "",
+                    origin_filter: "",
+                  };
+                  setFilters(cleared);
+                  setApplied(cleared);
+                  setFiltersOpen(false);
+                }}
+              >
+                세부 조건 지우기
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setFiltersOpen(true)}>
+                날짜·시장 바꾸기
+              </Button>
+            )
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

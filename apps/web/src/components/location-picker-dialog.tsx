@@ -25,9 +25,15 @@ interface LocationPickerDialogProps {
   value?: SelectedLocation | null;
   onSelect: (location: SelectedLocation) => void;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
-export function LocationPickerDialog({ value, onSelect, onClose }: LocationPickerDialogProps) {
+export function LocationPickerDialog({
+  value,
+  onSelect,
+  onClose,
+  readOnly = false,
+}: LocationPickerDialogProps) {
   const [location, setLocation] = useState<SelectedLocation>(
     () => value ?? { address: "", latitude: null, longitude: null }
   );
@@ -64,12 +70,16 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
         zoom: value?.latitude != null ? 13 : 9.35,
       });
     } catch {
-      setError("지도를 불러오지 못했습니다. 주소를 검색해 저장할 수 있습니다.");
+      setError(
+        readOnly
+          ? "지도를 불러오지 못했습니다."
+          : "지도를 불러오지 못했습니다. 주소를 검색해 저장할 수 있습니다."
+      );
       return;
     }
     map.current = instance;
     mapTouched.current = false;
-    if (value?.latitude == null || value?.longitude == null) {
+    if (!readOnly && (value?.latitude == null || value?.longitude == null)) {
       const request = ++locationRequest.current;
       void requestJejuLocation()
         .then((point) => {
@@ -88,13 +98,19 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
       mapTouched.current = true;
     });
     instance.addControl(new maplibregl.NavigationControl(), "top-right");
-    instance.on("click", (event) => {
-      mapTouched.current = true;
-      locationRequest.current += 1;
-      geocodeRequest.current?.abort();
-      setSearching(false);
-      setLocation((prev) => ({ ...prev, latitude: event.lngLat.lat, longitude: event.lngLat.lng }));
-    });
+    if (!readOnly) {
+      instance.on("click", (event) => {
+        mapTouched.current = true;
+        locationRequest.current += 1;
+        geocodeRequest.current?.abort();
+        setSearching(false);
+        setLocation((prev) => ({
+          ...prev,
+          latitude: event.lngLat.lat,
+          longitude: event.lngLat.lng,
+        }));
+      });
+    }
     return () => {
       locationRequest.current += 1;
       marker.current?.remove();
@@ -102,19 +118,21 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
       instance.remove();
       map.current = null;
     };
-  }, [container, value?.latitude, value?.longitude]);
+  }, [container, value?.latitude, value?.longitude, readOnly]);
   useEffect(() => {
     if (!container || !map.current || location.latitude == null || location.longitude == null)
       return;
     marker.current?.remove();
-    marker.current = new maplibregl.Marker({ draggable: true })
+    marker.current = new maplibregl.Marker({ draggable: !readOnly })
       .setLngLat([location.longitude, location.latitude])
       .addTo(map.current);
-    marker.current.on("dragend", () => {
-      const point = marker.current?.getLngLat();
-      if (point) setLocation((prev) => ({ ...prev, latitude: point.lat, longitude: point.lng }));
-    });
-  }, [location.latitude, location.longitude, container]);
+    if (!readOnly) {
+      marker.current.on("dragend", () => {
+        const point = marker.current?.getLngLat();
+        if (point) setLocation((prev) => ({ ...prev, latitude: point.lat, longitude: point.lng }));
+      });
+    }
+  }, [location.latitude, location.longitude, container, readOnly]);
 
   async function locateMe() {
     const instance = map.current;
@@ -165,66 +183,80 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
     >
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>위치 선택</DialogTitle>
-          <DialogDescription>주소를 검색하거나 지도에 핀을 찍으세요.</DialogDescription>
+          <DialogTitle>{readOnly ? "기록한 위치" : "위치 선택"}</DialogTitle>
+          <DialogDescription>
+            {readOnly
+              ? location.address || "지도에서 선택한 위치"
+              : "주소를 검색하거나 지도에 핀을 찍으세요."}
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex gap-2">
-          <Input
-            value={location.address}
-            readOnly
-            placeholder="선택한 주소"
-            aria-label="선택한 주소"
-          />
-          <Button variant="outline" disabled={locating} onClick={() => void locateMe()}>
-            {locating ? "위치 확인 중…" : "내 위치"}
-          </Button>
-          <Button variant="outline" onClick={() => setSearch((prev) => !prev)}>
-            주소 검색
-          </Button>
-        </div>
-        {search ? <DaumAddressSearch onSelect={(address) => void selectAddress(address)} /> : null}
-        <section
-          ref={setContainer}
-          className="h-80 w-full overflow-hidden rounded-xl border border-border sm:h-96 [&_.maplibregl-ctrl-group_button]:min-h-11 [&_.maplibregl-ctrl-group_button]:min-w-11 [&_.maplibregl-ctrl-group_button]:cursor-pointer [&_.maplibregl-ctrl-attrib]:text-base! [&_.maplibregl-ctrl-scale]:text-base!"
-          aria-label="위치 선택 지도"
-        />
-        <details className="rounded-lg border border-border px-3 py-2">
-          <summary className="cursor-pointer text-base text-muted-foreground">
-            좌표 직접 입력
-          </summary>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="location-latitude">위도</Label>
-              <Input
-                id="location-latitude"
-                type="number"
-                step="any"
-                value={location.latitude ?? ""}
-                onChange={(e) =>
-                  setLocation((prev) => ({
-                    ...prev,
-                    latitude: e.target.value === "" ? null : Number(e.target.value),
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="location-longitude">경도</Label>
-              <Input
-                id="location-longitude"
-                type="number"
-                step="any"
-                value={location.longitude ?? ""}
-                onChange={(e) =>
-                  setLocation((prev) => ({
-                    ...prev,
-                    longitude: e.target.value === "" ? null : Number(e.target.value),
-                  }))
-                }
-              />
-            </div>
+        {!readOnly ? (
+          <div className="flex gap-2">
+            <Input
+              value={location.address}
+              readOnly
+              placeholder="선택한 주소"
+              aria-label="선택한 주소"
+            />
+            <Button variant="outline" disabled={locating} onClick={() => void locateMe()}>
+              {locating ? "위치 확인 중…" : "내 위치"}
+            </Button>
+            <Button variant="outline" onClick={() => setSearch((prev) => !prev)}>
+              주소 검색
+            </Button>
           </div>
-        </details>
+        ) : null}
+        {!readOnly && search ? (
+          <DaumAddressSearch onSelect={(address) => void selectAddress(address)} />
+        ) : null}
+        {!readOnly || (location.latitude != null && location.longitude != null) ? (
+          <section
+            ref={setContainer}
+            className="h-80 w-full overflow-hidden rounded-xl border border-border sm:h-96 [&_.maplibregl-ctrl-group_button]:min-h-11 [&_.maplibregl-ctrl-group_button]:min-w-11 [&_.maplibregl-ctrl-group_button]:cursor-pointer [&_.maplibregl-ctrl-attrib]:text-base! [&_.maplibregl-ctrl-scale]:text-base!"
+            aria-label={readOnly ? "기록한 위치 지도" : "위치 선택 지도"}
+          />
+        ) : (
+          <p className="text-base text-muted-foreground">지도에 표시할 위치가 없습니다.</p>
+        )}
+        {!readOnly ? (
+          <details className="rounded-lg border border-border px-3 py-2">
+            <summary className="cursor-pointer text-base text-muted-foreground">
+              좌표 직접 입력
+            </summary>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="location-latitude">위도</Label>
+                <Input
+                  id="location-latitude"
+                  type="number"
+                  step="any"
+                  value={location.latitude ?? ""}
+                  onChange={(e) =>
+                    setLocation((prev) => ({
+                      ...prev,
+                      latitude: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="location-longitude">경도</Label>
+                <Input
+                  id="location-longitude"
+                  type="number"
+                  step="any"
+                  value={location.longitude ?? ""}
+                  onChange={(e) =>
+                    setLocation((prev) => ({
+                      ...prev,
+                      longitude: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </details>
+        ) : null}
         {searching ? (
           <p role="status" className="text-base text-muted-foreground">
             주소 위치 찾는 중…
@@ -236,23 +268,32 @@ export function LocationPickerDialog({ value, onSelect, onClose }: LocationPicke
           </p>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            취소
-          </Button>
-          <Button
-            disabled={
-              searching ||
-              (!location.address && (location.latitude == null || location.longitude == null)) ||
-              (location.latitude == null) !== (location.longitude == null) ||
-              (location.latitude != null &&
-                (Math.abs(location.latitude) > 90 || !Number.isFinite(location.latitude))) ||
-              (location.longitude != null &&
-                (Math.abs(location.longitude) > 180 || !Number.isFinite(location.longitude)))
-            }
-            onClick={() => onSelect(location)}
-          >
-            이 위치 선택
-          </Button>
+          {readOnly ? (
+            <Button variant="outline" onClick={onClose}>
+              닫기
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>
+                취소
+              </Button>
+              <Button
+                disabled={
+                  searching ||
+                  (!location.address &&
+                    (location.latitude == null || location.longitude == null)) ||
+                  (location.latitude == null) !== (location.longitude == null) ||
+                  (location.latitude != null &&
+                    (Math.abs(location.latitude) > 90 || !Number.isFinite(location.latitude))) ||
+                  (location.longitude != null &&
+                    (Math.abs(location.longitude) > 180 || !Number.isFinite(location.longitude)))
+                }
+                onClick={() => onSelect(location)}
+              >
+                이 위치 선택
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

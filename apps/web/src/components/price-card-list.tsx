@@ -39,6 +39,9 @@ interface PriceCardListProps {
   links?: PriceCardData[];
 }
 
+const PRICE_COLUMNS =
+  "xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7rem_minmax(10rem,auto)_2.75rem_2.75rem]";
+
 const HTTP_URL = /^https?:\/\//i;
 function safeExternalUrl(value?: string): string | undefined {
   if (!value || !HTTP_URL.test(value)) return undefined;
@@ -48,6 +51,24 @@ function safeExternalUrl(value?: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function packageLabel(card: PriceCardData): string {
+  if (card.net_weight_value)
+    return card.net_weight_value === 1000 ? "kg" : `${card.net_weight_value}g`;
+  return card.original_quantity && card.original_unit
+    ? `${card.original_quantity} ${card.original_unit}`
+    : "";
+}
+
+function priceLabel(card: PriceCardData, perKg: boolean): string {
+  if (perKg)
+    return card.price_per_kg_value == null
+      ? "환산가 없음"
+      : `${card.price_per_kg_value.toLocaleString()}원 / kg`;
+  if (card.price_value == null) return card.channel === "wholesale" ? "가격 미확인" : "";
+  const unit = packageLabel(card);
+  return `${card.price_value.toLocaleString()}원${unit ? ` / ${unit}` : ""}`;
 }
 
 export function PriceCardList({ cards }: PriceCardListProps) {
@@ -83,75 +104,84 @@ export function PriceCardList({ cards }: PriceCardListProps) {
           </fieldset>
         </div>
       ) : null}
+      <div
+        aria-hidden="true"
+        className={`hidden items-center gap-x-3 px-1 pb-2 text-base text-muted-foreground xl:grid ${PRICE_COLUMNS}`}
+      >
+        <span>상품</span>
+        <span>규격</span>
+        <span>기준일</span>
+        <span className="text-right">가격</span>
+        <span />
+        <span />
+      </div>
       <ul className="divide-y divide-border border-y border-border">
         {cards.map((card) => {
           const sourceUrl = safeExternalUrl(card.source_url);
+          const specification = [card.form, card.product_option ?? packageLabel(card)]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <li
               key={
                 card.row_id ??
                 `${card.source_url}-${card.product_option ?? card.survey_stage ?? card.title ?? card.channel}`
               }
-              className="py-5 sm:py-6"
+              className="py-3"
             >
-              <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-                <div className="min-w-0 flex-1 basis-44">
-                  <p className="text-base font-medium text-foreground sm:text-base">
+              <details className="group text-base text-muted-foreground">
+                <summary
+                  className={`grid min-h-11 cursor-pointer list-none grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-x-3 gap-y-1 rounded-sm px-1 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden ${PRICE_COLUMNS}`}
+                >
+                  <span
+                    className="col-span-3 min-w-0 truncate font-medium text-foreground xl:col-span-1"
+                    title={card.product ?? card.title}
+                  >
                     {card.product ?? card.title}
-                  </p>
-                  <p className="mt-1 text-base text-muted-foreground">
-                    {[card.form, card.product_option, formatDisplayDate(card.price_as_of)]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  {card.channel === "wholesale" ? (
-                    <p className="mb-1 text-base text-muted-foreground">정산 평균가</p>
-                  ) : null}
-                  {showPerKg ? (
-                    <p className="text-xl font-bold tabular-nums tracking-tight text-foreground sm:text-2xl">
-                      {card.price_per_kg_value == null
-                        ? "환산가 없음"
-                        : `${card.price_per_kg_value.toLocaleString()}원 / kg`}
-                    </p>
-                  ) : card.price_value != null ? (
-                    <p className="text-xl font-bold tabular-nums tracking-tight text-foreground sm:text-2xl">
-                      {card.price_value.toLocaleString()}원
-                      {card.net_weight_value
-                        ? card.net_weight_value === 1000
-                          ? " / kg"
-                          : ` / ${card.net_weight_value}g`
-                        : card.original_quantity && card.original_unit
-                          ? ` / ${card.original_quantity} ${card.original_unit}`
-                          : ""}
-                    </p>
-                  ) : card.channel === "wholesale" ? (
-                    <p className="text-base text-muted-foreground">가격 미확인</p>
-                  ) : null}
+                  </span>
+                  <span className="col-span-3 flex min-w-0 items-center justify-between gap-3 xl:contents">
+                    <span className="min-w-0 truncate" title={specification}>
+                      {specification}
+                    </span>
+                    <time className="shrink-0 tabular-nums" dateTime={card.price_as_of}>
+                      {formatDisplayDate(card.price_as_of)}
+                    </time>
+                  </span>
+                  <span className="min-w-0 text-right text-lg font-bold tabular-nums tracking-tight text-foreground xl:text-xl">
+                    {card.channel === "wholesale" ? (
+                      <span className="sr-only">정산 평균가 </span>
+                    ) : null}
+                    {priceLabel(card, showPerKg)}
+                  </span>
                   {sourceUrl ? (
                     <a
                       href={sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`${card.product ?? card.title ?? "상품"} 외부 링크`}
-                      title="상품 페이지 열기"
-                      className="mt-1 inline-flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+                      title="외부 링크 열기"
+                      className="inline-flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
                     >
                       <ArrowSquareOutIcon className="size-5" aria-hidden="true" />
                     </a>
-                  ) : null}
-                </div>
-              </div>
-              <details className="group mt-2 text-base text-muted-foreground">
-                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-                  세부정보{" "}
-                  <CaretDownIcon
-                    className="transition-transform group-open:rotate-180"
-                    aria-hidden="true"
-                  />
+                  ) : (
+                    <span aria-hidden="true" />
+                  )}
+                  <span className="inline-flex size-11 items-center justify-center rounded-lg group-hover:bg-muted">
+                    <span className="sr-only">세부정보</span>
+                    <CaretDownIcon
+                      className="size-5 transition-transform group-open:rotate-180"
+                      aria-hidden="true"
+                    />
+                  </span>
                 </summary>
                 <dl className="mt-2 grid gap-x-6 gap-y-2 border-l-2 border-border pl-3 sm:grid-cols-2">
+                  {card.channel === "wholesale" ? (
+                    <div>
+                      <dt className="inline">가격 기준 </dt>
+                      <dd className="inline text-foreground">정산 평균가</dd>
+                    </div>
+                  ) : null}
                   {card.corporation ? (
                     <div>
                       <dt className="inline">법인 </dt>

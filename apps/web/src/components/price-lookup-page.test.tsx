@@ -50,6 +50,83 @@ function mockPrices() {
 }
 
 describe("PriceLookupPage cache", () => {
+  it("retains applied option labels after an empty response and clears only extra conditions", async () => {
+    queryClient = new QueryClient();
+    const requests: Record<string, unknown>[] = [];
+    const options = {
+      markets: [{ value: "110001", label: "서울가락" }],
+      forms: [{ value: "생고사리", label: "생고사리" }],
+      grades: [{ value: "grade-a", label: "특등급" }],
+      packages: [{ value: "package-a", label: "상자" }],
+      weights: [{ value: "200g", label: "200g" }],
+    };
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const spec = JSON.parse(String(init?.body)).spec as Record<string, unknown>;
+      requests.push(spec);
+      return new Response(
+        JSON.stringify({
+          job_id: "job",
+          request_id: "request",
+          stage: "completed",
+          created_at: "now",
+          result: {
+            request_id: "request",
+            result: {
+              price_cards: [],
+              options: spec.grade ? { ...options, grades: [], packages: [], weights: [] } : options,
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PriceLookupPage initialChannel="wholesale" />
+      </QueryClientProvider>
+    );
+    await screen.findByText("선택한 날짜·시장에서 조건에 맞는 거래가 없습니다.");
+    fireEvent.click(screen.getByText("세부 조건"));
+    fireEvent.change(screen.getByLabelText("등급"), { target: { value: "grade-a" } });
+    fireEvent.change(screen.getByLabelText("포장"), { target: { value: "package-a" } });
+    fireEvent.change(screen.getByLabelText("단량"), { target: { value: "200g" } });
+    fireEvent.change(screen.getByLabelText("산지명"), { target: { value: "제주" } });
+    fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    await screen.findByText(
+      (text, element) =>
+        element?.tagName === "P" &&
+        text.includes("특등급") &&
+        text.includes("상자") &&
+        text.includes("200g") &&
+        text.includes("제주")
+    );
+    fireEvent.click(screen.getByRole("button", { name: "조회 조건 변경" }));
+    expect(
+      (screen.getByLabelText("등급") as HTMLSelectElement).selectedOptions[0].textContent
+    ).toBe("특등급");
+    expect(
+      (screen.getByLabelText("포장") as HTMLSelectElement).selectedOptions[0].textContent
+    ).toBe("상자");
+    fireEvent.click(screen.getByRole("button", { name: "세부 조건 지우기" }));
+    await screen.findByRole("button", { name: "날짜·시장 바꾸기" });
+    expect((screen.getByLabelText("등급") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("포장") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("단량") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("산지명") as HTMLInputElement).value).toBe("");
+    expect(requests[1]).toEqual(
+      expect.objectContaining({
+        grade: "grade-a",
+        package_code: "package-a",
+        package_weight_unit: "200g",
+        origin_filter: "제주",
+        market_ids: ["110001"],
+      })
+    );
+    expect(requests[0].settlement_date).toBe(requests[1].settlement_date);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("reuses each channel after switching and remounting, and refreshes explicitly", async () => {
     queryClient = new QueryClient();
     const request = mockPrices();
@@ -108,6 +185,38 @@ it("keeps price and date prominent while moving calculations and fees into colla
   const details = screen.getByText("세부정보").closest("details");
   expect(details?.open).toBe(false);
   expect(details?.textContent).toContain("162,500원/kg");
+  expect(details?.textContent).toContain("3,000원");
+  expect(details?.textContent).toContain("30,000원");
+});
+
+it("keeps the external source and all price details available from the compact result row", () => {
+  render(
+    <PriceCardList
+      cards={[
+        {
+          channel: "retail",
+          product: "제주 건고사리",
+          net_weight_value: 200,
+          price_value: 32500,
+          price_as_of: "2026-11-04",
+          shipping_value: 3000,
+          source_url: "https://example.com/product",
+          coupon_price: 30000,
+        },
+      ]}
+    />
+  );
+  const summary = screen.getByText("세부정보").closest("summary");
+  const details = summary?.closest("details");
+  expect(details?.open).toBe(false);
+  expect(summary?.textContent).toContain("32,500원 / 200g");
+  expect(summary?.textContent).toContain("2026-11-04");
+  const link = screen.getByRole("link", { name: "제주 건고사리 외부 링크" });
+  expect(summary?.contains(link)).toBe(true);
+  expect(screen.getAllByRole("link")).toHaveLength(1);
+  expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  fireEvent.click(summary as HTMLElement);
+  expect(details?.open).toBe(true);
   expect(details?.textContent).toContain("3,000원");
   expect(details?.textContent).toContain("30,000원");
 });

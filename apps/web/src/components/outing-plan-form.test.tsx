@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { afterEach, expect, it, vi } from "vitest";
 import { OutingPlanForm } from "@/components/outing-plan-form";
@@ -120,4 +120,38 @@ it("cancels the running public job and stops polling", async () => {
   expect((screen.getByRole("button", { name: "후보 비교" }) as HTMLButtonElement).disabled).toBe(
     false
   );
+});
+
+it("keeps the applied conditions and old result while marking changed preferences for refresh", async () => {
+  const run = vi.spyOn(api, "runAnalysis").mockResolvedValue({
+    result: { request_id: "first-comparison", result: {}, evidence_ids: [] },
+  } as never);
+  const view = render(
+    <Provider>
+      <OutingPlanForm initialDate="2026-11-08" />
+    </Provider>
+  );
+  fireEvent.click(screen.getByRole("button", { name: "후보 비교" }));
+  await screen.findByText("비교 결과");
+  view.rerender(
+    <Provider>
+      <OutingPlanForm initialDate="2026-11-09" />
+    </Provider>
+  );
+  expect((screen.getByLabelText("후보 1 날짜") as HTMLInputElement).value).toBe("2026-11-08");
+  const conditions = screen.getByLabelText("결과에 적용한 조건");
+  expect(within(conditions).getByText("우선순위: 비 적음 → 기온 온화 → 바람 약함")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("1순위"), { target: { value: "low_wind" } });
+  expect(
+    screen.getByText("조건이 바뀌었습니다. 후보 비교를 누르면 새 조건으로 갱신합니다.")
+  ).toBeTruthy();
+  expect(screen.getByText("비교 결과")).toBeTruthy();
+  expect(within(conditions).getByText("우선순위: 비 적음 → 기온 온화 → 바람 약함")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "후보 비교" }));
+  await screen.findByText("비교 결과");
+  expect(run).toHaveBeenCalledTimes(2);
+  expect(
+    screen.queryByText("조건이 바뀌었습니다. 후보 비교를 누르면 새 조건으로 갱신합니다.")
+  ).toBeNull();
+  expect(screen.getByText("우선순위: 바람 약함 → 기온 온화 → 비 적음")).toBeTruthy();
 });

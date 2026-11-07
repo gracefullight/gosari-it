@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LocationPickerDialog } from "@/components/location-picker-dialog";
 import { requestJejuLocation } from "@/lib/map-location";
 
-const maps = vi.hoisted(() => ({ create: vi.fn(), flyTo: vi.fn() }));
+const maps = vi.hoisted(() => ({ create: vi.fn(), flyTo: vi.fn(), on: vi.fn(), marker: vi.fn() }));
 vi.mock("@/lib/map-location", () => ({ requestJejuLocation: vi.fn() }));
 vi.mock("maplibre-gl", () => ({
   default: {
@@ -12,7 +12,9 @@ vi.mock("maplibre-gl", () => ({
         maps.create(options);
       }
       addControl() {}
-      on() {}
+      on(...args: unknown[]) {
+        maps.on(...args);
+      }
       remove() {}
       flyTo(options: unknown) {
         maps.flyTo(options);
@@ -20,6 +22,9 @@ vi.mock("maplibre-gl", () => ({
     },
     NavigationControl: class {},
     Marker: class {
+      constructor(options: unknown) {
+        maps.marker(options);
+      }
       setLngLat() {
         return this;
       }
@@ -70,4 +75,42 @@ it("prefers a saved pin and keeps manual coordinates in a collapsed section", as
   );
   expect(requestJejuLocation).not.toHaveBeenCalled();
   expect(screen.getByText("좌표 직접 입력").parentElement?.hasAttribute("open")).toBe(false);
+});
+
+it("shows a saved pin read-only without geolocation, pin editing, or a select action", async () => {
+  const select = vi.fn();
+  const close = vi.fn();
+  render(
+    <LocationPickerDialog
+      readOnly
+      value={{ address: "기록한 숲", latitude: 33.4, longitude: 126.7 }}
+      onSelect={select}
+      onClose={close}
+    />
+  );
+  await waitFor(() => expect(maps.marker).toHaveBeenCalledWith({ draggable: false }));
+  expect(maps.on.mock.calls.some(([name]) => name === "click")).toBe(false);
+  expect(requestJejuLocation).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "이 위치 선택" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "주소 검색" })).toBeNull();
+  expect(screen.queryByText("좌표 직접 입력")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+  expect(close).toHaveBeenCalledOnce();
+  expect(select).not.toHaveBeenCalled();
+});
+
+it("reads an address-only location without showing an unrelated default pin", () => {
+  render(
+    <LocationPickerDialog
+      readOnly
+      value={{ address: "주소로만 기록한 장소", latitude: null, longitude: null }}
+      onSelect={vi.fn()}
+      onClose={vi.fn()}
+    />
+  );
+  expect(screen.getByText("주소로만 기록한 장소")).toBeTruthy();
+  expect(screen.getByText("지도에 표시할 위치가 없습니다.")).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "기록한 위치 지도" })).toBeNull();
+  expect(maps.create).not.toHaveBeenCalled();
+  expect(requestJejuLocation).not.toHaveBeenCalled();
 });

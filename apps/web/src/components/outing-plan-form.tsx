@@ -6,6 +6,7 @@ import { ResultCard } from "@/components/result-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cancelAnalysisJob } from "@/lib/analysis-jobs";
+import { formatDisplayDate } from "@/lib/date-format";
 import { ApiError, api } from "@/lib/gosari.api";
 import type { ResultEnvelope } from "@/lib/gosari.types";
 import { featureResultsAtom } from "@/stores/chat.atoms";
@@ -35,6 +36,13 @@ interface Candidate {
   location_id: string;
   date: string;
   time_slot: string;
+}
+interface ComparisonConditions {
+  candidates: Omit<Candidate, "key">[];
+  preferred_elements: Criterion[];
+}
+interface AppliedComparisonConditions extends ComparisonConditions {
+  candidateKeys: number[];
 }
 const SELECT_CLASS =
   "min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base";
@@ -67,6 +75,24 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultEnvelope | null>(null);
+  const [appliedConditions, setAppliedConditions] = useState<AppliedComparisonConditions | null>(
+    null
+  );
+  const currentConditions: ComparisonConditions = {
+    candidates: candidates.map(({ location_id, date, time_slot }) => ({
+      location_id,
+      date,
+      time_slot,
+    })),
+    preferred_elements: criteria,
+  };
+  const conditionsChanged =
+    appliedConditions != null &&
+    JSON.stringify(currentConditions) !==
+      JSON.stringify({
+        candidates: appliedConditions.candidates,
+        preferred_elements: appliedConditions.preferred_elements,
+      });
   function update(key: number, patch: Partial<Candidate>) {
     setCandidates((current) =>
       current.map((candidate) => (candidate.key === key ? { ...candidate, ...patch } : candidate))
@@ -89,17 +115,13 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
     setProgress("후보 날씨 불러오는 중…");
     const controller = new AbortController();
     request.current = controller;
+    const submittedConditions = currentConditions;
     try {
       const job = await api.runAnalysis(
         {
           operation: "outing_compare",
           source_ids: ["open_meteo"],
-          candidates: candidates.map(({ location_id, date, time_slot }) => ({
-            location_id,
-            date,
-            time_slot,
-          })),
-          preferred_elements: criteria,
+          ...submittedConditions,
         },
         undefined,
         {
@@ -113,6 +135,10 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
       if (controller.signal.aborted) return;
       if (!job.result) throw new Error(job.error || "후보를 비교하지 못했습니다.");
       setResult(job.result);
+      setAppliedConditions({
+        ...submittedConditions,
+        candidateKeys: candidates.map((candidate) => candidate.key),
+      });
       setResults((previous) => ({ ...previous, 나들이: job.result as ResultEnvelope }));
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -150,7 +176,11 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
       aria-labelledby="outing-plan-title"
     >
       <div>
-        <h2 id="outing-plan-title" className="text-xl font-semibold">
+        <h2
+          id="outing-plan-title"
+          tabIndex={-1}
+          className="scroll-mt-6 text-2xl font-semibold focus-visible:outline-2 focus-visible:outline-ring"
+        >
           나들이 후보 비교
         </h2>
         <p className="mt-2 text-base text-muted-foreground">어디로, 언제 갈지 골라 보세요.</p>
@@ -296,7 +326,43 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
           </Button>
         ) : null}
       </div>
-      {result ? <ResultCard key={result.request_id} envelope={result} /> : null}
+      {result && appliedConditions ? (
+        <section className="grid gap-3" aria-label="나들이 비교 결과">
+          <h3 className="text-xl font-semibold">후보별 결과</h3>
+          {conditionsChanged ? (
+            <p
+              role="status"
+              className="rounded-xl bg-accent px-4 py-3 text-base text-accent-foreground"
+            >
+              조건이 바뀌었습니다. 후보 비교를 누르면 새 조건으로 갱신합니다.
+            </p>
+          ) : null}
+          <section
+            className="grid gap-2 text-base text-muted-foreground"
+            aria-label="결과에 적용한 조건"
+          >
+            <p className="font-medium text-foreground">이 결과에 적용한 조건</p>
+            <ul className="grid gap-1">
+              {appliedConditions.candidates.map((candidate, index) => (
+                <li key={appliedConditions.candidateKeys[index]}>
+                  후보 {index + 1} ·{" "}
+                  {OUTING_LOCATIONS.find(([id]) => id === candidate.location_id)?.[1] ??
+                    candidate.location_id}
+                  {" · "}
+                  {formatDisplayDate(candidate.date)} · {candidate.time_slot}
+                </li>
+              ))}
+            </ul>
+            <p>
+              우선순위:{" "}
+              {appliedConditions.preferred_elements
+                .map((criterion) => CRITERIA.find(([id]) => id === criterion)?.[1])
+                .join(" → ")}
+            </p>
+          </section>
+          <ResultCard key={result.request_id} envelope={result} />
+        </section>
+      ) : null}
     </section>
   );
 }

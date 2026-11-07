@@ -62,6 +62,8 @@ function NotebookDraftForm({
   const [unit, setUnit] = useState(savedDraft?.unit ?? "봉지");
   const [location, setLocation] = useState<SelectedLocation | null>(savedDraft?.location ?? null);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [locationPreview, setLocationPreview] = useState<SelectedLocation | null>(null);
+  const listRequest = useRef(0);
   const [evidenceIds, setEvidenceIds] = useState<string[]>(() => [
     ...new Set(savedDraft?.evidenceIds ?? initialEvidenceIds ?? []),
   ]);
@@ -102,6 +104,13 @@ function NotebookDraftForm({
   const [aliasFilter, setAliasFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const hasFilters = Boolean(start || end || aliasFilter);
+  const clearFilters = () => {
+    setStart("");
+    setEnd("");
+    setAliasFilter("");
+  };
   const navigate = (nextMode: "list" | "write", id?: string, selectedDate?: string) => {
     setLocalMode(nextMode);
     setEditingId(id);
@@ -116,7 +125,8 @@ function NotebookDraftForm({
     );
   };
   const loadEntries = useCallback(async () => {
-    setBusy(true);
+    const request = ++listRequest.current;
+    setLoadingEntries(true);
     setError(null);
     try {
       const result = await api.notebookRecall({
@@ -124,16 +134,20 @@ function NotebookDraftForm({
         end: end || undefined,
         alias: aliasFilter || undefined,
       });
-      setEntries(result.entries);
+      if (request === listRequest.current) setEntries(result.entries);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "기록을 불러오지 못했습니다.");
+      if (request === listRequest.current)
+        setError(err instanceof ApiError ? err.message : "기록을 불러오지 못했습니다.");
     } finally {
-      setBusy(false);
+      if (request === listRequest.current) setLoadingEntries(false);
     }
   }, [start, end, aliasFilter]);
   useEffect(() => {
     void revision;
     void loadEntries();
+    return () => {
+      listRequest.current += 1;
+    };
   }, [loadEntries, revision]);
   const populate = useCallback((entry: NotebookEntry) => {
     setEditingId(entry.record_id);
@@ -277,6 +291,7 @@ function NotebookDraftForm({
         <fieldset className="flex gap-2" aria-label="수첩 보기 방식">
           <Button
             variant={view === "list" ? "default" : "outline"}
+            aria-pressed={view === "list"}
             size="sm"
             onClick={() => setView("list")}
           >
@@ -284,12 +299,9 @@ function NotebookDraftForm({
           </Button>
           <Button
             variant={view === "calendar" ? "default" : "outline"}
+            aria-pressed={view === "calendar"}
             size="sm"
-            onClick={() => {
-              setStart("");
-              setEnd("");
-              setView("calendar");
-            }}
+            onClick={() => setView("calendar")}
           >
             달력
           </Button>
@@ -301,142 +313,161 @@ function NotebookDraftForm({
         </p>
       ) : null}
       {activeMode === "write" ? (
-        <div className="grid gap-5 rounded-2xl border border-border bg-card p-5 sm:p-7">
-          <div className="grid gap-2">
-            <Label htmlFor="notebook-date" required>
-              채취 날짜
-            </Label>
-            <DatePickerField
-              id="notebook-date"
-              required
-              aria-label="채취 날짜"
-              value={date}
-              onChange={setDate}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="notebook-location">위치</Label>
-            <div className="flex gap-2">
-              <Input
-                id="notebook-location"
-                value={location?.address ?? ""}
-                onChange={(event) => {
-                  const address = event.target.value;
-                  setLocation((previous) => ({
-                    address,
-                    latitude: previous?.latitude ?? null,
-                    longitude: previous?.longitude ?? null,
-                  }));
-                }}
-                placeholder={
-                  location?.latitude != null ? "지도에서 선택한 위치" : "장소 이름 또는 주소"
-                }
-              />
-              <Button variant="outline" onClick={() => setLocationOpen(true)}>
-                <MapPinIcon />
-                지도 선택
-              </Button>
-            </div>
-            {location ? (
-              <Button className="w-fit" variant="ghost" size="sm" onClick={() => setLocation(null)}>
-                위치 지우기
-              </Button>
-            ) : null}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="notebook-text" required>
-              기록
-            </Label>
-            <Textarea
-              id="notebook-text"
-              aria-required="true"
-              rows={6}
-              className="field-sizing-fixed min-h-40"
-              maxLength={2000}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="오늘 채취한 고사리와 기억할 일을 남겨 보세요."
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="notebook-aliases">동행</Label>
-            <Input
-              id="notebook-aliases"
-              value={aliases}
-              onChange={(e) => setAliases(e.target.value)}
-              placeholder="예: 어머니, 이웃"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="notebook-amount">수량</Label>
-              <Input
-                id="notebook-amount"
-                type="number"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="notebook-unit">단위</Label>
-              <Input id="notebook-unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
-            </div>
-          </div>
-          <PublicEvidenceSelector value={evidenceIds} onChange={setEvidenceIds} />
-          <PublicEvidenceLinks ids={evidenceIds} />
-          <Button
-            onClick={() => void submit()}
-            disabled={busy || !date || !text.trim() || Boolean(recordId && !editingId)}
+        <>
+          {recordId && !draftReady && !error ? (
+            <p role="status" className="text-base text-muted-foreground">
+              기록 불러오는 중…
+            </p>
+          ) : null}
+          <fieldset
+            disabled={!draftReady}
+            aria-busy={recordId && !draftReady ? true : undefined}
+            className="grid min-w-0 gap-5 rounded-2xl border border-border bg-card p-5 sm:p-7"
           >
-            {editingId ? "수정 내용 확인" : "저장할 내용 확인"}
-          </Button>
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notebook-date" required>
+                채취 날짜
+              </Label>
+              <DatePickerField
+                id="notebook-date"
+                required
+                aria-label="채취 날짜"
+                value={date}
+                onChange={setDate}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notebook-location">위치</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="notebook-location"
+                  value={location?.address ?? ""}
+                  onChange={(event) => {
+                    const address = event.target.value;
+                    setLocation((previous) => ({
+                      address,
+                      latitude: previous?.latitude ?? null,
+                      longitude: previous?.longitude ?? null,
+                    }));
+                  }}
+                  placeholder={
+                    location?.latitude != null ? "지도에서 선택한 위치" : "장소 이름 또는 주소"
+                  }
+                />
+                <Button variant="outline" onClick={() => setLocationOpen(true)}>
+                  <MapPinIcon />
+                  지도 선택
+                </Button>
+              </div>
+              {location ? (
+                <Button
+                  className="w-fit"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLocation(null)}
+                >
+                  위치 지우기
+                </Button>
+              ) : null}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notebook-text" required>
+                기록
+              </Label>
+              <Textarea
+                id="notebook-text"
+                aria-required="true"
+                rows={6}
+                className="field-sizing-fixed min-h-40"
+                maxLength={2000}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="오늘 채취한 고사리와 기억할 일을 남겨 보세요."
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notebook-aliases">동행</Label>
+              <Input
+                id="notebook-aliases"
+                value={aliases}
+                onChange={(e) => setAliases(e.target.value)}
+                placeholder="예: 어머니, 이웃"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="notebook-amount">수량</Label>
+                <Input
+                  id="notebook-amount"
+                  type="number"
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notebook-unit">단위</Label>
+                <Input id="notebook-unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+              </div>
+            </div>
+            <PublicEvidenceSelector value={evidenceIds} onChange={setEvidenceIds} />
+            <PublicEvidenceLinks ids={evidenceIds} />
+            <Button
+              onClick={() => void submit()}
+              disabled={busy || !date || !text.trim() || Boolean(recordId && !editingId)}
+            >
+              {editingId ? "수정 내용 확인" : "저장할 내용 확인"}
+            </Button>
+          </fieldset>
+        </>
       ) : (
         <>
-          {view === "list" ? (
-            <div className="grid grid-cols-1 gap-3 rounded-xl bg-muted/60 p-4 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,1fr)]">
-              <div className="grid gap-1">
-                <Label htmlFor="filter-start">시작 날짜</Label>
-                <DatePickerField
-                  id="filter-start"
-                  aria-label="시작 날짜"
-                  value={start}
-                  onChange={setStart}
-                />
-              </div>
-              <div className="grid gap-1">
-                <Label htmlFor="filter-end">종료 날짜</Label>
-                <DatePickerField
-                  id="filter-end"
-                  aria-label="종료 날짜"
-                  value={end}
-                  onChange={setEnd}
-                />
-              </div>
-              <div className="grid gap-1">
-                <Label htmlFor="filter-alias">동행 검색</Label>
-                <Input
-                  id="filter-alias"
-                  value={aliasFilter}
-                  onChange={(e) => setAliasFilter(e.target.value)}
-                />
-              </div>
+          <div className="grid grid-cols-1 gap-3 rounded-xl bg-muted/60 p-4 lg:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,1fr)]">
+            <div className="grid gap-1">
+              <Label htmlFor="filter-start">시작 날짜</Label>
+              <DatePickerField
+                id="filter-start"
+                aria-label="시작 날짜"
+                value={start}
+                onChange={setStart}
+              />
             </div>
-          ) : null}
-          {view === "list" && (start || end || aliasFilter) && entries.length > 0 ? (
-            <Button
-              className="w-fit"
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setStart("");
-                setEnd("");
-                setAliasFilter("");
-              }}
+            <div className="grid gap-1">
+              <Label htmlFor="filter-end">종료 날짜</Label>
+              <DatePickerField
+                id="filter-end"
+                aria-label="종료 날짜"
+                value={end}
+                onChange={setEnd}
+              />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="filter-alias">동행 검색</Label>
+              <Input
+                id="filter-alias"
+                value={aliasFilter}
+                onChange={(e) => setAliasFilter(e.target.value)}
+              />
+            </div>
+          </div>
+          {hasFilters ? (
+            <section
+              aria-label="현재 검색 조건"
+              className="flex flex-wrap items-center gap-3 text-base"
             >
-              검색 조건 지우기
-            </Button>
+              <p className="min-w-0 break-words text-muted-foreground">
+                {[
+                  start ? `시작 ${formatDisplayDate(start)}` : "",
+                  end ? `종료 ${formatDisplayDate(end)}` : "",
+                  aliasFilter ? `동행 ${aliasFilter}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <Button className="w-fit" size="sm" variant="ghost" onClick={clearFilters}>
+                검색 조건 지우기
+              </Button>
+            </section>
           ) : null}
           {view === "calendar" ? (
             <DateSelectionCalendar
@@ -467,12 +498,12 @@ function NotebookDraftForm({
               }}
             />
           ) : null}
-          {busy ? (
+          {loadingEntries ? (
             <p role="status" className="text-base text-muted-foreground">
               기록 불러오는 중…
             </p>
           ) : null}
-          {view === "list" && !busy && entries.length === 0 ? (
+          {view === "list" && !loadingEntries && entries.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border px-5 py-14 text-center">
               <PencilSimpleIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
               <p className="text-muted-foreground">
@@ -481,18 +512,6 @@ function NotebookDraftForm({
                   : "아직 기록이 없습니다."}
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-3">
-                {start || end || aliasFilter ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setStart("");
-                      setEnd("");
-                      setAliasFilter("");
-                    }}
-                  >
-                    검색 조건 지우기
-                  </Button>
-                ) : null}
                 <Button variant="outline" onClick={startNew}>
                   첫 기록 쓰기
                 </Button>
@@ -546,21 +565,20 @@ function NotebookDraftForm({
                     <PublicEvidenceLinks ids={entry.public_evidence_ids ?? []} />
                   </div>
                   {entry.location_address || entry.latitude != null ? (
-                    <button
-                      type="button"
-                      className="mt-2 flex items-center gap-1 text-base text-primary"
+                    <Button
+                      variant="link"
+                      className="mt-2 max-w-full justify-start whitespace-normal px-0 text-left"
                       onClick={() => {
-                        setLocation({
+                        setLocationPreview({
                           address: entry.location_address ?? "",
                           latitude: entry.latitude ?? null,
                           longitude: entry.longitude ?? null,
                         });
-                        setLocationOpen(true);
                       }}
                     >
                       <MapPinIcon />
                       {entry.location_address || "기록한 위치 보기"}
-                    </button>
+                    </Button>
                   ) : null}
                   <p className="mt-2 text-base text-muted-foreground">
                     {[
@@ -586,6 +604,14 @@ function NotebookDraftForm({
             setLocation({ ...next, address: next.address.trim() || "지도에서 선택한 위치" });
             setLocationOpen(false);
           }}
+        />
+      ) : null}
+      {locationPreview ? (
+        <LocationPickerDialog
+          readOnly
+          value={locationPreview}
+          onClose={() => setLocationPreview(null)}
+          onSelect={() => undefined}
         />
       ) : null}
     </section>

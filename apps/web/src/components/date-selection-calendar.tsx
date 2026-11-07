@@ -10,6 +10,8 @@ export interface DateSelectionCalendarProps {
   onSelect: (date: string) => void;
   events?: EventInput[];
   onEventSelect?: (id: string) => void;
+  min?: string;
+  max?: string;
 }
 
 function formatCalendarDate(date: Date): string {
@@ -21,8 +23,13 @@ export function DateSelectionCalendar({
   onSelect,
   events = [],
   onEventSelect,
+  min,
+  max,
 }: DateSelectionCalendarProps) {
   const calendar = useRef<FullCalendar>(null);
+  const isAvailable = (day: string) => (!min || day >= min) && (!max || day <= max);
+  const end = max ? new Date(`${max}T12:00:00Z`) : undefined;
+  end?.setUTCDate(end.getUTCDate() + 1);
   useEffect(() => {
     if (value) calendar.current?.getApi().gotoDate(value);
   }, [value]);
@@ -37,6 +44,7 @@ export function DateSelectionCalendar({
         headerToolbar={{ left: "prev", center: "title", right: "next" }}
         height="auto"
         fixedWeekCount={false}
+        validRange={min || max ? { start: min, end: end?.toISOString().slice(0, 10) } : undefined}
         dayMaxEventRows={2}
         events={events}
         eventInteractive
@@ -44,7 +52,9 @@ export function DateSelectionCalendar({
           info.jsEvent.preventDefault();
           onEventSelect?.(info.event.id);
         }}
-        dateClick={(info) => onSelect(info.dateStr)}
+        dateClick={(info) => {
+          if (isAvailable(info.dateStr)) onSelect(info.dateStr);
+        }}
         dayCellClassNames={(info) =>
           formatCalendarDate(info.date) === value ? ["fc-day-selected"] : []
         }
@@ -55,10 +65,11 @@ export function DateSelectionCalendar({
               type="button"
               aria-label={`${day} 선택`}
               aria-pressed={day === value}
-              className="m-0 flex size-11 cursor-pointer items-center justify-center rounded-lg font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+              disabled={!isAvailable(day)}
+              className="m-0 flex size-11 cursor-pointer items-center justify-center rounded-lg font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground disabled:cursor-default disabled:text-muted-foreground"
               onClick={(event) => {
                 event.stopPropagation();
-                onSelect(day);
+                if (isAvailable(day)) onSelect(day);
               }}
             >
               {info.date.getDate()}

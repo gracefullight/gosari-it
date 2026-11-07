@@ -238,6 +238,7 @@ it("opens a dated notebook from the selected public weather without putting an a
       </Provider>
     </QueryClientProvider>
   );
+  fireEvent.click(screen.getByRole("button", { name: "지도 보기" }));
   const list = await screen.findByRole("region", { name: "지역별 날씨 목록" });
   fireEvent.click((await within(list).findAllByRole("button"))[0]);
   fireEvent.click(await screen.findByRole("button", { name: "수첩에 기록" }));
@@ -260,8 +261,9 @@ it("starts outing map collapsed, mounts visibly once and preserves date/selectio
   const toggle = screen.getByRole("button", { name: "지도 보기" });
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByLabelText("제주 지도")).toBeNull();
-  await screen.findByRole("region", { name: "지역별 날씨 목록" });
-  expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("region", { name: "지역별 날씨 목록" })).toBeNull();
+  expect(screen.getByRole("button", { name: "후보 비교로 이동" })).toBeTruthy();
+  await waitFor(() => expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledTimes(1));
   fireEvent.click(toggle);
   const map = await screen.findByRole("region", { name: "제주 지도" });
   expect(toggle.getAttribute("aria-expanded")).toBe("true");
@@ -290,4 +292,30 @@ it("keeps the regions map expanded immediately without an outing accordion", asy
   expect(screen.queryByRole("button", { name: "지도 보기" })).toBeNull();
   await screen.findByRole("button", { name: "선흘 숲길 지도 핀" });
   expect(mapLifecycle.mounts).toHaveBeenCalledTimes(1);
+});
+
+it("preserves drafted candidates and preference order when only the weather date changes", async () => {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Provider>
+        <WeatherMapPage mode="outing" onPreview={vi.fn()} />
+      </Provider>
+    </QueryClientProvider>
+  );
+  fireEvent.click(screen.getByRole("button", { name: "후보 추가" }));
+  const first = screen.getByRole("group", { name: "후보 1" });
+  fireEvent.change(within(first).getByLabelText("지역"), { target: { value: "aewol" } });
+  fireEvent.change(within(first).getByLabelText("시각"), { target: { value: "15:00" } });
+  fireEvent.change(screen.getByLabelText("1순위"), { target: { value: "low_wind" } });
+  fireEvent.click(screen.getByRole("button", { name: "다음 날짜" }));
+  await waitFor(() =>
+    expect(endpoints.apiV1WeatherGetWeather).toHaveBeenCalledWith(
+      { date: shiftDate(koreaToday(), 1) },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  );
+  expect(screen.getByRole("group", { name: "후보 3" })).toBeTruthy();
+  expect((within(first).getByLabelText("지역") as HTMLSelectElement).value).toBe("aewol");
+  expect((within(first).getByLabelText("시각") as HTMLSelectElement).value).toBe("15:00");
+  expect((screen.getByLabelText("1순위") as HTMLSelectElement).value).toBe("low_wind");
 });

@@ -178,6 +178,42 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
     }
   }
 
+  const weatherList = showWeather ? (
+    <section
+      className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-2"
+      aria-label="지역별 날씨 목록"
+    >
+      {locations.map((location) => (
+        <button
+          key={location.id}
+          type="button"
+          onClick={() => {
+            selectLocation(location);
+            setFocus({ latitude: location.latitude, longitude: location.longitude });
+          }}
+          className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3 text-left hover:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+          aria-pressed={selected?.id === location.id}
+        >
+          <span className="flex min-w-0 flex-col break-words">
+            <span className="text-base font-medium">{location.name}</span>
+            <span className="text-base text-weather-rain">
+              비{" "}
+              {location.precipitation_probability == null
+                ? "—"
+                : `${location.precipitation_probability}%`}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <WeatherIcon condition={location.condition} className="size-5" />
+            <span className="font-semibold tabular-nums">
+              {location.temperature_c == null ? "—" : `${Math.round(location.temperature_c)}°`}
+            </span>
+          </span>
+        </button>
+      ))}
+    </section>
+  ) : null;
+
   const map = (
     <JejuWeatherMap
       locations={showWeather ? locations : []}
@@ -231,6 +267,17 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {mode === "outing" ? (
+            <Button
+              onClick={() => {
+                const heading = document.getElementById("outing-plan-title");
+                heading?.focus({ preventScroll: true });
+                heading?.scrollIntoView?.({ block: "start" });
+              }}
+            >
+              후보 비교로 이동
+            </Button>
+          ) : null}
           {mode === "regions" ? (
             <label className="mr-2 flex items-center gap-2 text-base">
               <input
@@ -332,6 +379,7 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
             </AccordionTrigger>
             <AccordionContent keepMounted className="p-2 pt-0 text-base">
               {mapMounted ? map : null}
+              {weatherList}
             </AccordionContent>
           </AccordionItem>
         </Accordion>
@@ -387,42 +435,8 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
           </Button>
         </div>
       ) : null}
-      {showWeather ? (
-        <section
-          className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6"
-          aria-label="지역별 날씨 목록"
-        >
-          {locations.map((location) => (
-            <button
-              key={location.id}
-              type="button"
-              onClick={() => {
-                selectLocation(location);
-                setFocus({ latitude: location.latitude, longitude: location.longitude });
-              }}
-              className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card p-3 text-left hover:border-primary focus-visible:ring-2 focus-visible:ring-ring"
-              aria-pressed={selected?.id === location.id}
-            >
-              <span className="flex flex-col">
-                <span className="text-base font-medium">{location.name}</span>
-                <span className="text-base text-weather-rain">
-                  비{" "}
-                  {location.precipitation_probability == null
-                    ? "—"
-                    : `${location.precipitation_probability}%`}
-                </span>
-              </span>
-              <span className="flex items-center gap-1">
-                <WeatherIcon condition={location.condition} className="size-5" />
-                <span className="font-semibold tabular-nums">
-                  {location.temperature_c == null ? "—" : `${Math.round(location.temperature_c)}°`}
-                </span>
-              </span>
-            </button>
-          ))}
-        </section>
-      ) : null}
-      {mode === "outing" ? <OutingPlanForm key={date} initialDate={date} /> : null}
+      {mode === "regions" ? weatherList : null}
+      {mode === "outing" ? <OutingPlanForm initialDate={date} /> : null}
       {mode === "regions" ? (
         <section>
           <h2 className="mb-3 text-lg font-semibold">
@@ -480,6 +494,8 @@ export function WeatherMapPage({ mode, onPreview }: WeatherMapPageProps) {
             </DialogHeader>
             <DateSelectionCalendar
               value={date}
+              min="1940-01-01"
+              max={shiftDate(koreaToday(), 15)}
               onSelect={(value) => {
                 setDate(value);
                 setSelected(null);

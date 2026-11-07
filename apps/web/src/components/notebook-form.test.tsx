@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NotebookForm } from "@/components/notebook-form";
@@ -24,21 +24,48 @@ vi.mock("@/components/date-picker-field", () => ({
   }) => <input id={id} value={value} onChange={(event) => onChange(event.target.value)} />,
 }));
 vi.mock("@/components/location-picker-dialog", () => ({
-  LocationPickerDialog: ({ onSelect }: { onSelect: (v: unknown) => void }) => (
-    <>
-      <button
-        type="button"
-        onClick={() => onSelect({ address: "제주시 조천읍", latitude: 33.45, longitude: 126.7 })}
-      >
-        위치 확정
-      </button>
-      <button
-        type="button"
-        onClick={() => onSelect({ address: "", latitude: 33.38, longitude: 126.55 })}
-      >
-        핀 위치 확정
-      </button>
-    </>
+  LocationPickerDialog: ({
+    onSelect,
+    onClose,
+    value,
+    readOnly,
+  }: {
+    onSelect: (v: unknown) => void;
+    onClose: () => void;
+    value?: { address: string };
+    readOnly?: boolean;
+  }) =>
+    readOnly ? (
+      <section role="dialog" aria-label="기록한 위치">
+        <p>{value?.address}</p>
+        <button type="button" onClick={onClose}>
+          닫기
+        </button>
+      </section>
+    ) : (
+      <>
+        <button
+          type="button"
+          onClick={() => onSelect({ address: "제주시 조천읍", latitude: 33.45, longitude: 126.7 })}
+        >
+          위치 확정
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelect({ address: "", latitude: 33.38, longitude: 126.55 })}
+        >
+          핀 위치 확정
+        </button>
+      </>
+    ),
+}));
+vi.mock("@/components/date-selection-calendar", () => ({
+  DateSelectionCalendar: ({ events }: { events: { id: string; title: string }[] }) => (
+    <section aria-label="기록 달력">
+      {events.map((event) => (
+        <p key={event.id}>{event.title}</p>
+      ))}
+    </section>
   ),
 }));
 beforeEach(() => {
@@ -358,4 +385,150 @@ it("keeps preview drafts until their exact commit and discards an explicitly can
   view.unmount();
   open();
   await screen.findByDisplayValue("원본");
+});
+
+it("keeps active search conditions visible in the calendar and clears them together", async () => {
+  render(
+    <Provider>
+      <NotebookForm onPreview={vi.fn()} />
+    </Provider>
+  );
+  await screen.findByText("아직 기록이 없습니다.");
+  fireEvent.change(screen.getByLabelText("시작 날짜"), { target: { value: "2026-11-01" } });
+  fireEvent.change(screen.getByLabelText("종료 날짜"), { target: { value: "2026-11-07" } });
+  fireEvent.change(screen.getByLabelText("동행 검색"), { target: { value: "가족" } });
+  fireEvent.click(screen.getByRole("button", { name: "달력", pressed: false }));
+  expect(screen.getByRole("button", { name: "달력", pressed: true })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "목록", pressed: false })).toBeTruthy();
+  expect((screen.getByLabelText("동행 검색") as HTMLInputElement).value).toBe("가족");
+  expect(screen.getByLabelText("현재 검색 조건").textContent).toContain("시작 2026-11-01");
+  fireEvent.click(screen.getByRole("button", { name: "검색 조건 지우기" }));
+  await waitFor(() =>
+    expect(api.notebookRecall).toHaveBeenLastCalledWith({
+      start: undefined,
+      end: undefined,
+      alias: undefined,
+    })
+  );
+  expect((screen.getByLabelText("시작 날짜") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("종료 날짜") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("동행 검색") as HTMLInputElement).value).toBe("");
+});
+
+it("opens a saved record location as read-only without starting an edit", async () => {
+  vi.mocked(api.notebookRecall).mockResolvedValue({
+    entries: [
+      {
+        record_id: "place-note",
+        experience_date: "2026-11-07",
+        activity_text: "가족 기록",
+        companion_aliases: [],
+        location_address: "기록한 숲",
+        latitude: 33.4,
+        longitude: 126.6,
+      },
+    ],
+    count: 1,
+  } as never);
+  const navigate = vi.fn();
+  const prepare = vi.spyOn(api, "notebookPrepare");
+  render(
+    <Provider>
+      <NotebookForm onPreview={vi.fn()} onNavigate={navigate} />
+    </Provider>
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "기록한 숲" }));
+  expect(screen.getByRole("dialog", { name: "기록한 위치" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "핀 위치 확정" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(prepare).not.toHaveBeenCalled();
+  expect(navigate).not.toHaveBeenCalled();
+});
+
+it("keeps an existing record disabled until loaded, then preserves new typing", async () => {
+  let resolveEntry!: (value: Awaited<ReturnType<typeof api.notebookList>>) => void;
+  vi.spyOn(api, "notebookList").mockReturnValue(
+    new Promise((resolve) => {
+      resolveEntry = resolve;
+    })
+  );
+  render(
+    <Provider>
+      <NotebookForm mode="write" recordId="delayed" onPreview={vi.fn()} />
+    </Provider>
+  );
+  expect(screen.getByRole("status").textContent).toBe("기록 불러오는 중…");
+  const fields = screen.getByLabelText(RECORD_LABEL).closest("fieldset") as HTMLFieldSetElement;
+  expect(fields.disabled).toBe(true);
+  expect(fields.getAttribute("aria-busy")).toBe("true");
+  await act(async () => {
+    resolveEntry({
+      entries: [
+        {
+          record_id: "delayed",
+          experience_date: "2026-11-07",
+          activity_text: "불러온 원본",
+          companion_aliases: [],
+        } as never,
+      ],
+    });
+  });
+  await screen.findByDisplayValue("불러온 원본");
+  expect(fields.disabled).toBe(false);
+  expect(fields.hasAttribute("aria-busy")).toBe(false);
+  fireEvent.change(screen.getByLabelText(RECORD_LABEL), {
+    target: { value: "준비 뒤 입력한 내용" },
+  });
+  expect((screen.getByLabelText(RECORD_LABEL) as HTMLTextAreaElement).value).toBe(
+    "준비 뒤 입력한 내용"
+  );
+});
+
+it("does not replace the latest search with a late response for an older condition", async () => {
+  let resolveOld!: (value: Awaited<ReturnType<typeof api.notebookRecall>>) => void;
+  vi.mocked(api.notebookRecall).mockImplementation((params) =>
+    params.alias === "이전"
+      ? new Promise((resolve) => {
+          resolveOld = resolve;
+        })
+      : Promise.resolve({
+          entries:
+            params.alias === "최근"
+              ? [
+                  {
+                    record_id: "new",
+                    experience_date: "2026-11-07",
+                    activity_text: "최신 검색 결과",
+                    companion_aliases: [],
+                  } as never,
+                ]
+              : [],
+          count: params.alias === "최근" ? 1 : 0,
+        })
+  );
+  render(
+    <Provider>
+      <NotebookForm onPreview={vi.fn()} />
+    </Provider>
+  );
+  await screen.findByText("아직 기록이 없습니다.");
+  fireEvent.change(screen.getByLabelText("동행 검색"), { target: { value: "이전" } });
+  fireEvent.change(screen.getByLabelText("동행 검색"), { target: { value: "최근" } });
+  await screen.findByText("최신 검색 결과");
+  await act(async () => {
+    resolveOld({
+      entries: [
+        {
+          record_id: "old",
+          experience_date: "2026-11-07",
+          activity_text: "오래된 검색 결과",
+          companion_aliases: [],
+        } as never,
+      ],
+      count: 1,
+    });
+  });
+  await waitFor(() => expect(screen.queryByText("오래된 검색 결과")).toBeNull());
+  expect(screen.getByText("최신 검색 결과")).toBeTruthy();
 });
