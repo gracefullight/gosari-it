@@ -285,7 +285,7 @@ def test_last_page_failure_preserves_other_market_and_retry_scope(
 def test_price_evidence_preserves_displayed_options_and_numeric_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("gosari.agent.analysis.db_available", lambda: False)
+    monkeypatch.setattr("gosari.agent.evidence_store.db_available", lambda: False)
     monkeypatch.setattr(AtAdapter, "settlement", lambda *args, **kwargs: ([row()], manifest(1, 1)))
     engine = AnalysisEngine(settings())
     wholesale = engine.run(

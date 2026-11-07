@@ -118,7 +118,7 @@ def test_live_outing_uses_each_date_and_hour_and_partial_failure(monkeypatch):
         }
 
     monkeypatch.setattr("gosari.sources.outing.fetch_outing_weather", fetch)
-    monkeypatch.setattr("gosari.agent.analysis.db_available", lambda: False)
+    monkeypatch.setattr("gosari.agent.evidence_store.db_available", lambda: False)
     from gosari.agent.analysis import AnalysisEngine
 
     spec = build_public_spec(
