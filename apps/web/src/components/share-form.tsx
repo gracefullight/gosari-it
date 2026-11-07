@@ -3,18 +3,14 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import { DatePickerField } from "@/components/date-picker-field";
 import { ShareActivityItem, type SharingActivity } from "@/components/share-activity-item";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  RELATIONSHIPS,
+  ShareContactDialog,
+  type ShareContactValues,
+} from "@/components/share-contact-dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDisplayDate } from "@/lib/date-format";
 import { ApiError, api } from "@/lib/gosari.api";
 import type {
@@ -29,14 +25,6 @@ import { appPathAtom, revisionCounterAtom } from "@/stores/chat.atoms";
 interface ShareFormProps {
   onPreview: (preview: Preview) => void;
 }
-const RELATIONSHIPS: PersonalContact["relationship"][] = [
-  "가족",
-  "친척",
-  "친구",
-  "이웃",
-  "동료",
-  "기타",
-];
 const LEGACY_ID = "previous-sharing";
 
 function today(): string {
@@ -67,10 +55,6 @@ export function ShareForm({ onPreview }: ShareFormProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contactDialog, setContactDialog] = useState<"create" | "update" | null>(null);
-  const [contactName, setContactName] = useState("");
-  const [contactRelationship, setContactRelationship] =
-    useState<PersonalContact["relationship"]>("가족");
-  const [contactNotes, setContactNotes] = useState("");
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordDate, setRecordDate] = useState(today);
   const [amount, setAmount] = useState("1");
@@ -152,16 +136,13 @@ export function ShareForm({ onPreview }: ShareFormProps) {
   function openContact(mode: "create" | "update") {
     setContactDialog(mode);
     setError(null);
-    setContactName(mode === "update" ? (selectedContact?.name ?? "") : "");
-    setContactRelationship(mode === "update" ? (selectedContact?.relationship ?? "가족") : "가족");
-    setContactNotes(mode === "update" ? (selectedContact?.notes ?? "") : "");
   }
-  async function saveContact() {
+  async function saveContact(values: ShareContactValues) {
     setBusy(true);
     setError(null);
     try {
       const preview = await api.contactsPrepare(
-        { name: contactName.trim(), relationship: contactRelationship, notes: contactNotes.trim() },
+        { name: values.name.trim(), relationship: values.relationship, notes: values.notes.trim() },
         contactDialog === "update" ? "update" : "create",
         contactDialog === "update" ? selectedContact?.contact_id : undefined
       );
@@ -568,72 +549,14 @@ export function ShareForm({ onPreview }: ShareFormProps) {
         </div>
       </div>
       {contactDialog ? (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setContactDialog(null);
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{contactDialog === "create" ? "지인 추가" : "지인 수정"}</DialogTitle>
-              <DialogDescription>이름과 나와의 관계를 기록하세요.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="contact-name">이름</Label>
-                <Input
-                  id="contact-name"
-                  autoFocus
-                  maxLength={100}
-                  value={contactName}
-                  onChange={(event) => setContactName(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="contact-relationship">관계</Label>
-                <select
-                  id="contact-relationship"
-                  value={contactRelationship}
-                  onChange={(event) =>
-                    setContactRelationship(event.target.value as PersonalContact["relationship"])
-                  }
-                  className="min-h-11 rounded-lg border border-input bg-background px-3 text-base"
-                >
-                  {RELATIONSHIPS.map((relation) => (
-                    <option key={relation} value={relation}>
-                      {relation}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="contact-notes">메모</Label>
-                <Textarea
-                  id="contact-notes"
-                  rows={3}
-                  maxLength={2000}
-                  value={contactNotes}
-                  onChange={(event) => setContactNotes(event.target.value)}
-                  placeholder="기억할 내용을 적어 주세요."
-                />
-              </div>
-              {error ? (
-                <p role="alert" className="text-base text-destructive">
-                  {error}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setContactDialog(null)}>
-                취소
-              </Button>
-              <Button disabled={busy || !contactName.trim()} onClick={() => void saveContact()}>
-                내용 확인
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ShareContactDialog
+          mode={contactDialog}
+          contact={selectedContact ?? null}
+          error={error}
+          busy={busy}
+          onCancel={() => setContactDialog(null)}
+          onSave={(values) => void saveContact(values)}
+        />
       ) : null}
     </section>
   );
