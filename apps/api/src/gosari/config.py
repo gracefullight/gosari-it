@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+API_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
 
 def read_secret_file(path: str | None) -> str | None:
     """file-backed secret을 읽는다. 없거나 비면 None."""
@@ -19,7 +21,9 @@ def read_secret_file(path: str | None) -> str | None:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=API_ENV_FILE, env_file_encoding="utf-8", extra="ignore"
+    )
 
     # 실행
     app_host: str = "127.0.0.1"

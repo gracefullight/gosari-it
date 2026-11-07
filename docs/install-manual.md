@@ -16,14 +16,14 @@ mise trust
 mise install --locked   # mise.lock 플랫폼 고정
 bun install
 uv sync --all-packages
-mise run up             # doctor → init → build → db → db-init → app → readiness
+mise run up             # init → doctor → build → db → db-init → app → readiness
 ```
 
 `mise run up` 내부 순서:
 
-1. doctor: Linux daemon·로컬 context·lock·포트 검사. 원격/공유 daemon 차단.
-2. init: `.local/settings.env`, `.local/images.env`, DB 비밀을 **원자적 exclusive create**로 생성.
-   기존 파일·키·볼륨은 덮어쓰거나 삭제하지 않는다. OpenAI 키는 기본 빈 파일.
+1. init: `apps/api/.env`와 `apps/web/.env`가 없을 때 각 앱의 `.env.example`에서 권한0600으로 생성한다.
+   새 API 설정의 DB 비밀번호는 임의 생성하며 기존 파일·키·볼륨은 덮어쓰거나 삭제하지 않는다.
+2. doctor: 앱별 설정·DB 비밀번호·Linux daemon·로컬 context·lock·포트를 검사한다. 원격/공유 daemon은 차단한다.
 3. build: frozen 의존성으로 이미지 빌드. `.local/build-manifest.json`에
    image ID·소스 commit·lock 해시를 기록.
 4. db `up --wait` → db-init 실제 실행 완료 확인 → app `--no-deps --wait`.
@@ -31,9 +31,14 @@ mise run up             # doctor → init → build → db → db-init → app �
 
 ## 3. 비밀·설정
 
-- `.local/secrets/` — `db_admin_password`, `db_app_password`, `openai_api_key`,
-  `sources.env`(원천 키). **Git·빌드 컨텍스트·로그 제외.**
-- `.local/settings.env` — 비밀 없는 실행 설정. `deploy/settings.env.example` 참고.
+- API 설정과 비밀은 `apps/api/.env`에 둔다. 예시는 `apps/api/.env.example`을 사용한다.
+  `DB_ADMIN_PASSWORD`, `DB_PASSWORD`, 모델·기관 API 키와 `VWORLD_DOMAIN`을 이 파일에서 관리한다.
+- 웹 설정은 `apps/web/.env`에 둔다. `VITE_` 변수는 브라우저에 포함되므로 서버 비밀을 넣지 않는다.
+- Compose도 같은 `apps/api/.env`를 사용한다. DB 비밀번호는 이 환경변수에서 Docker 런타임 secret으로 전달하고,
+  앱에는 관리자 비밀번호를 전달하지 않는다. 이미지 참조(`GOSARI_APP_IMAGE`, `GOSARI_DB_IMAGE`)와 `APP_PORT`도 API 설정에 둔다.
+- 기존 DB를 연결할 때는 현재 DB 비밀번호를 그대로 유지한다. `.env`를 새로 만들어도 기존 DB 역할의 비밀번호가 바뀌지는 않는다.
+- `.local/`은 로그·PID·lock·빌드 매니페스트 등 실행 산출물에만 사용한다. 기존 DB 볼륨은 유지한다.
+- 실제 `.env`는 Git·이미지 빌드 컨텍스트·로그에서 제외한다.
 - 환경변수 계약은 SRS §16.2와 `apps/api/src/gosari/config.py`가 일치한다.
 - 원천 키를 UI·LLM·매니페스트 URL에 노출하지 않는다. 매니페스트 URL은 인증정보 제거.
 
@@ -56,7 +61,7 @@ mise run up             # doctor → init → build → db → db-init → app �
 
 - DB 볼륨(`public_pgdata`)에는 공개 자료와 개인 기록이 함께 있으며 `down`으로 유지된다. 백업은 센터의 개인 기록 보관 정책을 확인한 뒤 수행한다.
 - 갱신: 소스 갱신 → `mise run up` (재빌드·migration). migration 실패 후 볼륨 자동 삭제 금지.
-- `reset`은 `--confirm=gosariit-local` 명시 확인 시 DB 볼륨을 삭제한다. 공개 자료와 모든 개인 기록이 삭제되며 비밀 파일은 유지된다.
+- `reset`은 `--confirm=gosariit-local` 명시 확인 시 DB 볼륨을 삭제한다. 공개 자료와 모든 개인 기록이 삭제되며 앱별 `.env`는 유지된다.
 - 화면의 개인 기록 초기화는 현재 세션의 DB 행과 메모리를 삭제한다. 기존 백업·내려받은 파일·OS 임시 파일·스왑은 별도 보관·삭제 대상이며, 초기화가 저장 장치의 포렌식 삭제를 수행하는 것은 아니다. 센터 운영자는 이 항목의 보관·정리 절차를 따로 확인한다.
 
 ## 7. Windows 센터
@@ -68,10 +73,10 @@ mise run up             # doctor → init → build → db → db-init → app �
 
 ## 8. 문제 해결
 
-| 증상 | 확인 |
-|---|---|
-| doctor: daemon 연결 실패 | OrbStack/Docker Desktop 시작 |
-| 앱 limited | DB 연결·키·게이트 설정. `/api/v1/health/ready` 참조 |
-| 예보 조회 불가 | Open-Meteo 연결·조회 날짜 확인. 기관 자료는 해당 서비스 활용신청과 인증 결과 확인 |
-| 지도 회색 | `TILE_PROVIDER_CONFIG` 미설정 → 목록 표시가 정상 |
-| 포트 충돌 | `.local/settings.env`의 APP_PORT 변경 |
+| 증상                     | 확인                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| doctor: daemon 연결 실패 | OrbStack/Docker Desktop 시작                                                      |
+| 앱 limited               | DB 연결·키·게이트 설정. `/api/v1/health/ready` 참조                               |
+| 예보 조회 불가           | Open-Meteo 연결·조회 날짜 확인. 기관 자료는 해당 서비스 활용신청과 인증 결과 확인 |
+| 지도 회색                | `TILE_PROVIDER_CONFIG` 미설정 → 목록 표시가 정상                                  |
+| 포트 충돌                | `apps/api/.env`의 APP_PORT 변경                                                   |

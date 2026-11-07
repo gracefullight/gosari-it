@@ -69,26 +69,22 @@ services:
         condition: service_completed_successfully
     ports:
       - "127.0.0.1:${APP_PORT:-8765}:8765"
+    env_file:
+      - apps/api/.env
     environment:
       APP_PROFILE: ${APP_PROFILE:-center}
       DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: gosari_public
       DB_USER: gosari_app
+      DB_DSN: ""
       DB_PASSWORD_FILE: /run/secrets/db_app_password
-      LLM_MODEL: gpt-6-luna
-      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
-      EXTERNAL_REQUESTS_ENABLED: ${EXTERNAL_REQUESTS_ENABLED:-false}
-      ALLOW_NOTEBOOK_IMPORT: "false"
-      ALLOW_NOTEBOOK_EXPORT: "false"
-      ALLOW_SHARE_FILE: "false"
-      RESPONSE_CACHE_ENABLED: ${RESPONSE_CACHE_ENABLED:-true}
-      TILE_PROVIDER_CONFIG: ${TILE_PROVIDER_CONFIG:-}
-      DOMAIN_THRESHOLD_CONFIG: ${DOMAIN_THRESHOLD_CONFIG:-}
-      JEJU_PROJECT_KEY: ${JEJU_PROJECT_KEY:-}
-      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-}
-      AT_SERVICE_KEY: ${AT_SERVICE_KEY:-}
-    secrets: [db_app_password, openai_api_key]
+      DB_ADMIN_PASSWORD: ""
+      DB_ADMIN_PASSWORD_FILE: ""
+      DB_ADMIN_DSN: ""
+      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
+      AT_SERVICE_KEY: ${AT_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
+    secrets: [db_app_password]
     networks: [db_internal, app_egress]
     healthcheck:
       test: ["CMD", "python", "-m", "gosari.ops.healthcheck"]
@@ -107,8 +103,6 @@ networks:
 
 secrets:
   db_admin_password:
-    file: .local/secrets/db_admin_password
+    environment: DB_ADMIN_PASSWORD
   db_app_password:
-    file: .local/secrets/db_app_password
-  openai_api_key:
-    file: .local/secrets/openai_api_key
+    environment: DB_PASSWORD

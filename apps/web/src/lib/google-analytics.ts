@@ -19,7 +19,6 @@ const PAGES: Record<AnalyticsPath, { name: string; title: string }> = {
   "/prices": { name: "prices", title: "가격 조사" },
   "/not-found": { name: "not_found", title: "페이지 없음" },
 };
-const MEASUREMENT_ID = /^G-[A-Z0-9]{6,20}$/;
 const NOTEBOOK_EDIT = /^\/notebook\/[^/]+\/edit\/?$/;
 const URL_SUFFIX = /[?#]/;
 const TRAILING_SLASHES = /\/+$/;
@@ -65,15 +64,10 @@ function safePage(path: string) {
   const page = PAGES[safePath];
   return { path: safePath, name: page.name, title: `고사리잇 · ${page.title}` };
 }
-function measurementId(): string | null {
-  const value: unknown = import.meta.env.VITE_GA_MEASUREMENT_ID ?? GOSARI_GA_MEASUREMENT_ID;
-  return typeof value === "string" && MEASUREMENT_ID.test(value) ? value : null;
-}
-
-/** Configure the stream with Enhanced measurement OFF before setting its ID. */
+/** Configure the fixed stream with Enhanced measurement OFF. */
 export function initializeGoogleAnalytics(path = "/"): boolean {
-  const id = measurementId();
-  if (!id || typeof window === "undefined" || typeof document === "undefined") return false;
+  const id = GOSARI_GA_MEASUREMENT_ID;
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
   const browser = window as AnalyticsWindow;
   if (browser.__gosariAnalytics?.measurementId === id) return true;
   const page = safePage(path);

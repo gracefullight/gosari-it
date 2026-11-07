@@ -12,7 +12,7 @@ import {
 } from "@/lib/google-analytics";
 import { appPathAtom } from "@/stores/chat.atoms";
 
-const FAKE_ID = "G-TEST123456";
+const FIXED_ID = "G-8K2GSW71C6";
 const inserted: HTMLScriptElement[] = [];
 type TestWindow = Window & { dataLayer?: unknown[][]; gtag?: unknown; __gosariAnalytics?: unknown };
 function browser() {
@@ -22,7 +22,6 @@ function events() {
   return (browser().dataLayer ?? []).filter((entry) => entry[0] === "event");
 }
 beforeEach(() => {
-  vi.stubEnv("VITE_GA_MEASUREMENT_ID", FAKE_ID);
   inserted.length = 0;
   Reflect.deleteProperty(window, "dataLayer");
   Reflect.deleteProperty(window, "gtag");
@@ -44,16 +43,16 @@ afterEach(() => {
 });
 
 describe("GA4 public usage boundary", () => {
-  it.each(["", "not-a-measurement-id", "G-<script>PRIVATE</script>"])(
-    "does nothing without a valid measurement ID: %s",
+  it.each(["", "G-OTHER123456", "G-<script>PRIVATE</script>"])(
+    "keeps the fixed stream instead of a runtime override: %s",
     (id) => {
       vi.stubEnv("VITE_GA_MEASUREMENT_ID", id);
-      expect(initializeGoogleAnalytics()).toBe(false);
-      expect(trackPageView("/share?contact=PRIVATE_QUERY_CANARY")).toBe(false);
-      expect(trackChatUsage("send")).toBe(false);
-      expect(inserted).toHaveLength(0);
-      expect(browser().dataLayer).toBeUndefined();
-      expect(browser().gtag).toBeUndefined();
+      expect(initializeGoogleAnalytics()).toBe(true);
+      expect(trackPageView("/share?contact=PRIVATE_QUERY_CANARY")).toBe(true);
+      expect(trackChatUsage("send")).toBe(true);
+      expect(inserted).toHaveLength(1);
+      expect(inserted[0].src).toBe(`https://www.googletagmanager.com/gtag/js?id=${FIXED_ID}`);
+      expect(browser().dataLayer?.find((entry) => entry[0] === "config")?.[1]).toBe(FIXED_ID);
     }
   );
 
@@ -75,11 +74,11 @@ describe("GA4 public usage boundary", () => {
     ).toBe(true);
     expect(initializeGoogleAnalytics("/prices")).toBe(true);
     expect(inserted).toHaveLength(1);
-    expect(inserted[0].src).toBe(`https://www.googletagmanager.com/gtag/js?id=${FAKE_ID}`);
+    expect(inserted[0].src).toBe(`https://www.googletagmanager.com/gtag/js?id=${FIXED_ID}`);
     expect(inserted[0].async).toBe(true);
     expect(inserted[0].referrerPolicy).toBe("origin");
     const config = browser().dataLayer?.find((entry) => entry[0] === "config");
-    expect(config?.[1]).toBe(FAKE_ID);
+    expect(config?.[1]).toBe(FIXED_ID);
     expect(config?.[2]).toMatchObject({
       send_page_view: false,
       allow_google_signals: false,

@@ -38,12 +38,13 @@ mise run up
 ### 개발 모드 (네이티브)
 
 ```sh
+mise run init         # apps/api/.env, apps/web/.env 생성 (기존 값 유지)
 mise run infra:up     # 개발용 PostgreSQL 18/pgvector
 mise run db:migrate
 mise run dev          # API(8000) + Vite(5173, /api 프록시)
 ```
 
-네이티브 API는 `.local/settings.env`·`.local/secrets/sources.env`·`.local/dev.env`를 읽고 기존 환경변수를 우선한다. DB·OpenAI 키 파일은 `.local/secrets/`에서 읽는다. 기기별 DB 주소는 `.local/dev.env`에서 설정한다. 키 값은 소스에 넣지 않는다.
+API 설정과 DB·OpenAI·공공 API 키는 `apps/api/.env`에서 관리한다. 웹의 `VITE_*` 설정은 `apps/web/.env`에서 관리한다. 각 앱은 자기 `.env`를 읽으며 기존 환경변수를 우선한다. 예제는 각 앱의 `.env.example`에 있다.
 
 ## 다섯 기능
 

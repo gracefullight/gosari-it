@@ -105,6 +105,7 @@ def main():
                 "PYTHONPATH": str(ROOT / "apps/api/src"),
                 "OPENAI_API_KEY": "",
                 "OPENAI_API_KEY_FILE": "",
+                "EXTERNAL_REQUESTS_ENABLED": "false",
             }
             run(
                 [ROOT / ".venv/bin/python", "-m", "pytest", *tests, "-q"],

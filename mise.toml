@@ -65,16 +65,12 @@ description = "Check local Docker, locks, policy, ports and file permissions"
 run = "node scripts/compose.mjs doctor"
 
 [tasks.init]
-description = "Create missing local settings and DB secrets without overwrite"
+description = "Create missing app .env files without overwrite"
 run = "node scripts/compose.mjs init"
 
 [tasks.up]
 description = "Start the local Compose stack and verify readiness"
-run = [
-  "node scripts/compose.mjs doctor",
-  "node scripts/compose.mjs init",
-  "node scripts/compose.mjs up",
-]
+run = "node scripts/compose.mjs up"
 
 [tasks.status]
 description = "Show local services, schema and supported capabilities"

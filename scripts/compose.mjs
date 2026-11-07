@@ -4,26 +4,27 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
   mkdirSync,
-  readFileSync,
-  writeFileSync,
   openSync,
-  closeSync,
+  readFileSync,
   unlinkSync,
-  constants,
+  writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import { readCapabilities, waitForReadiness } from "./runtime-readiness.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROJECT = "gosariit-local";
 const LOCAL = join(ROOT, ".local");
-const SECRETS = join(LOCAL, "secrets");
-const SETTINGS = join(LOCAL, "settings.env");
-const IMAGES_ENV = join(LOCAL, "images.env");
+const API_ENV = join(ROOT, "apps/api/.env");
+const WEB_ENV = join(ROOT, "apps/web/.env");
 const LOCK = join(LOCAL, "compose.lock");
+const SECRET_NAME_PATTERN = /KEY|PASSWORD|SECRET|TOKEN|DSN/;
 
 function log(msg) {
   process.stdout.write(`${msg}\n`);
@@ -41,46 +42,36 @@ function run(cmd, args, opts = {}) {
     ...opts,
   });
   if (result.status !== 0 && !opts.allowFailure) {
-    const stderr = (result.stderr || "").slice(0, 500);
+    const secrets = Object.entries(composeEnv())
+      .filter(([name, value]) => SECRET_NAME_PATTERN.test(name) && value)
+      .map(([, value]) => value);
+    const stderr = secrets
+      .reduce((text, value) => text.replaceAll(value, "[비공개]"), result.stderr || "")
+      .slice(0, 500);
     fail(`${cmd} ${args[0] ?? ""} 실패 (exit ${result.status}): ${stderr}`);
   }
   return result;
 }
 
 function parseEnvFile(path) {
-  if (!existsSync(path)) return {};
-  const out = {};
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq > 0) out[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
-  }
-  return out;
+  return existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
 }
 
 function composeEnv() {
-  const settings = parseEnvFile(SETTINGS);
-  const images = parseEnvFile(IMAGES_ENV);
-  const sources = parseEnvFile(join(SECRETS, "sources.env"));
-  // 원천 키는 앱 컨테이너에만 주입하고 로그/인자에 노출하지 않는다.
+  const api = parseEnvFile(API_ENV);
   return {
-    GOSARI_APP_IMAGE: images.GOSARI_APP_IMAGE || "gosariit-app:local",
-    GOSARI_DB_IMAGE: images.GOSARI_DB_IMAGE || "pgvector/pgvector:pg18",
-    APP_PORT: settings.APP_PORT || images.APP_PORT || "8765",
-    APP_PROFILE: settings.APP_PROFILE || "center",
-    EXTERNAL_REQUESTS_ENABLED: settings.EXTERNAL_REQUESTS_ENABLED || "false",
-    RESPONSE_CACHE_ENABLED: settings.RESPONSE_CACHE_ENABLED || "true",
-    TILE_PROVIDER_CONFIG: settings.TILE_PROVIDER_CONFIG || "",
-    DOMAIN_THRESHOLD_CONFIG: settings.DOMAIN_THRESHOLD_CONFIG || "",
-    JEJU_PROJECT_KEY: sources.JEJU_PROJECT_KEY || "",
-    KMA_SERVICE_KEY: sources.KMA_SERVICE_KEY || sources.DATA_GO_KR_SERVICE_KEY || "",
-    AT_SERVICE_KEY: sources.AT_SERVICE_KEY || sources.DATA_GO_KR_SERVICE_KEY || "",
+    ...api,
+    GOSARI_APP_IMAGE: api.GOSARI_APP_IMAGE || "gosariit-app:local",
+    GOSARI_DB_IMAGE: api.GOSARI_DB_IMAGE || "pgvector/pgvector:pg18",
+    APP_PORT: api.APP_PORT || "8765",
+    APP_PROFILE: api.APP_PROFILE || "center",
+    KMA_SERVICE_KEY: api.KMA_SERVICE_KEY || api.DATA_GO_KR_SERVICE_KEY || "",
+    AT_SERVICE_KEY: api.AT_SERVICE_KEY || api.DATA_GO_KR_SERVICE_KEY || "",
   };
 }
 
 function composeArgs(extra = []) {
-  return ["compose", "-p", PROJECT, "-f", "compose.yaml", ...extra];
+  return ["compose", "--env-file", "apps/api/.env", "-p", PROJECT, "-f", "compose.yaml", ...extra];
 }
 
 let lockHeld = false;
@@ -106,26 +97,47 @@ function releaseLock() {
 process.on("exit", releaseLock);
 
 function doctor() {
+  if (!existsSync(API_ENV) || !existsSync(WEB_ENV)) {
+    fail("apps/api/.env 및 apps/web/.env가 필요합니다. mise run init으로 준비하세요.");
+  }
+  const api = parseEnvFile(API_ENV);
+  if (!api.DB_ADMIN_PASSWORD || !api.DB_PASSWORD) {
+    fail(
+      "apps/api/.env의 DB_ADMIN_PASSWORD 및 DB_PASSWORD를 설정하세요. 기존 DB의 비밀번호를 유지하세요."
+    );
+  }
   log("doctor: Docker 엔진 확인");
   const version = run("docker", ["version", "--format", "{{.Server.Os}}/{{.Server.Arch}}"], {
     allowFailure: true,
   });
-  if (version.status !== 0) fail("Docker daemon에 연결할 수 없습니다. Docker Desktop/엔진을 시작하세요.");
+  if (version.status !== 0)
+    fail("Docker daemon에 연결할 수 없습니다. Docker Desktop/엔진을 시작하세요.");
   const os = (version.stdout || "").trim();
-  if (!os.startsWith("linux")) fail(`Linux 컨테이너 daemon이 필요합니다 (현재: ${os || "unknown"}).`);
+  if (!os.startsWith("linux"))
+    fail(`Linux 컨테이너 daemon이 필요합니다 (현재: ${os || "unknown"}).`);
   const context = run("docker", ["context", "show"], { allowFailure: true });
   const ctx = (context.stdout || "").trim();
-  const endpoint = run("docker", ["context", "inspect", ctx, "--format", "{{.Endpoints.docker.Host}}"], {
-    allowFailure: true,
-  });
+  const endpoint = run(
+    "docker",
+    ["context", "inspect", ctx, "--format", "{{.Endpoints.docker.Host}}"],
+    {
+      allowFailure: true,
+    }
+  );
   const host = (endpoint.stdout || "").trim();
-  if (host && !host.startsWith("unix://") && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+  if (
+    host &&
+    !host.startsWith("unix://") &&
+    !host.includes("localhost") &&
+    !host.includes("127.0.0.1")
+  ) {
     fail(`원격/공유 Docker context는 차단됩니다: ${ctx}`);
   }
   run("docker", ["compose", "version"]);
   if (!existsSync(join(ROOT, "compose.yaml"))) fail("compose.yaml이 없습니다.");
   if (!existsSync(join(ROOT, "uv.lock"))) fail("uv.lock이 없습니다. uv sync를 먼저 실행하세요.");
-  if (!existsSync(join(ROOT, "bun.lock"))) fail("bun.lock이 없습니다. bun install을 먼저 실행하세요.");
+  if (!existsSync(join(ROOT, "bun.lock")))
+    fail("bun.lock이 없습니다. bun install을 먼저 실행하세요.");
   const port = composeEnv().APP_PORT;
   const probe = spawnSync("node", [
     "-e",
@@ -149,18 +161,28 @@ function createExclusive(path, content) {
 }
 
 function init() {
-  mkdirSync(SECRETS, { recursive: true });
   const created = [];
-  if (createExclusive(join(SECRETS, "db_admin_password"), randomBytes(32).toString("base64url")))
-    created.push("db_admin_password");
-  if (createExclusive(join(SECRETS, "db_app_password"), randomBytes(32).toString("base64url")))
-    created.push("db_app_password");
-  if (createExclusive(join(SECRETS, "openai_api_key"), "")) created.push("openai_api_key(빈 파일)");
-  if (createExclusive(SETTINGS, readFileSync(join(ROOT, "deploy/settings.env.example"), "utf8")))
-    created.push("settings.env");
-  if (createExclusive(IMAGES_ENV, readFileSync(join(ROOT, "deploy/images.env.example"), "utf8")))
-    created.push("images.env");
-  log(created.length ? `init: 생성됨 — ${created.join(", ")}` : "init: 기존 파일 유지 (덮어쓰기 없음)");
+  if (!existsSync(API_ENV)) {
+    let template = readFileSync(join(ROOT, "apps/api/.env.example"), "utf8");
+    for (const name of ["DB_ADMIN_PASSWORD", "DB_PASSWORD"]) {
+      const pattern = new RegExp(`^${name}=.*$`, "m");
+      const line = `${name}=${randomBytes(32).toString("base64url")}`;
+      template = pattern.test(template)
+        ? template.replace(pattern, line)
+        : `${template.trimEnd()}\n${line}\n`;
+    }
+    if (createExclusive(API_ENV, template)) created.push("apps/api/.env");
+  }
+  if (!existsSync(WEB_ENV)) {
+    if (createExclusive(WEB_ENV, readFileSync(join(ROOT, "apps/web/.env.example"), "utf8"))) {
+      created.push("apps/web/.env");
+    }
+  }
+  log(
+    created.length
+      ? `init: 생성됨 — ${created.join(", ")}`
+      : "init: 기존 앱별 .env 유지 (덮어쓰기 없음)"
+  );
 }
 
 function build() {
@@ -183,25 +205,30 @@ function build() {
 async function up() {
   acquireLock();
   try {
-    doctor();
     init();
+    doctor();
     build();
     log("up: DB 시작");
     run("docker", [...composeArgs(), "up", "-d", "--wait", "db"]);
     log("up: DB 초기화(역할·vector·migration)");
+    run("docker", [...composeArgs(), "run", "--no-deps", "--rm", "db-init"]);
+    log("up: 앱 시작");
     run("docker", [
       ...composeArgs(),
-      "run",
+      "up",
+      "-d",
       "--no-deps",
-      "--rm",
-      "db-init",
+      "--wait",
+      "--wait-timeout",
+      "180",
+      "app",
     ]);
-    log("up: 앱 시작");
-    run("docker", [...composeArgs(), "up", "-d", "--no-deps", "--wait", "--wait-timeout", "180", "app"]);
     const port = composeEnv().APP_PORT;
     const ready = await waitForReadiness({ port });
     log(`✓ 준비 완료 — http://127.0.0.1:${port}`);
-    log(`  상태: ${ready.status} · 프로필: ${ready.profile} · 외부요청: ${ready.external_requests}`);
+    log(
+      `  상태: ${ready.status} · 프로필: ${ready.profile} · 외부요청: ${ready.external_requests}`
+    );
     log("  개인 기록은 DB에 보관됩니다. 실행 중인 조회는 재시작 시 중단될 수 있습니다.");
   } finally {
     releaseLock();
@@ -233,13 +260,15 @@ function down() {
 function reset() {
   const confirm = process.argv.find((a) => a.startsWith("--confirm="));
   if (confirm !== `--confirm=${PROJECT}`) {
-    fail(`reset은 공개 자료와 개인 기록을 삭제합니다. 확인하려면 --confirm=${PROJECT} 를 전달하세요.`);
+    fail(
+      `reset은 공개 자료와 개인 기록을 삭제합니다. 확인하려면 --confirm=${PROJECT} 를 전달하세요.`
+    );
   }
   acquireLock();
   try {
     run("docker", [...composeArgs(), "down", "--remove-orphans"]);
     run("docker", ["volume", "rm", `${PROJECT}_public_pgdata`]);
-    log("✓ reset 완료 — DB 볼륨과 개인 기록 삭제됨 (비밀 유지)");
+    log("✓ reset 완료 — DB 볼륨과 개인 기록 삭제됨 (앱별 .env 유지)");
   } finally {
     releaseLock();
   }
