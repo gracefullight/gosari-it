@@ -186,5 +186,153 @@
     "annual_average_krw": 145349,
     "pricing": "GPT-6 Luna Standard 입력 $0.10/M·출력 $0.50/M, 프롬프트 캐시 할인 미적용(실측 cached 0)",
     "note": "표본 2건은 3후보 날씨 비교 작업이며 가벼운 안내 답변은 토큰이 적다."
+  },
+  "prompt_cache": {
+    "finding": "제공자 프롬프트 캐시는 기본 동작(implicit)하지만, 초 단위 시계 시스템 메시지가 정적 시스템 프롬프트 바로 뒤에 있어 매 호출 접두사가 달라져 적중 0이었다. 정적 도구·시스템 프롬프트를 앞에, 시계를 이력 뒤 마지막 메시지로 옮겼다.",
+    "probe": {
+      "same_prefix_twice": {
+        "call1": {
+          "cached": 0,
+          "cache_write": 3409
+        },
+        "call2": {
+          "cached": 3409,
+          "cache_write": 0
+        }
+      },
+      "prompt_cache_retention_in_memory": "400 This model is compatible only with 24h extended prompt caching",
+      "explicit_breakpoint_on_system_block": {
+        "cached": 3403,
+        "cache_write": 0,
+        "note": "동작하지만 2회 호출 작업에서 이득이 작아 implicit 유지"
+      }
+    },
+    "pricing_usd_per_million": {
+      "cached": 0.01,
+      "write": 0.125,
+      "plain": 0.1,
+      "output": 0.5
+    },
+    "runs_after_fix": [
+      {
+        "label": "시계 이동 뒤·기존 답변 길이, 애월·서귀포·성산",
+        "calls": 2,
+        "input_tokens": 9379,
+        "cached_input_tokens": 7006,
+        "cache_write_tokens": 1871,
+        "output_tokens": 771,
+        "elapsed_ms": 10824,
+        "cost_usd_measured": 0.00074,
+        "cost_usd_warm_prefix": 0.00074,
+        "records": [
+          {
+            "input_tokens": 3782,
+            "output_tokens": 102,
+            "provider_cached_input_tokens": 3475,
+            "provider_cache_write_tokens": 56,
+            "elapsed_ms": 3507
+          },
+          {
+            "input_tokens": 5597,
+            "output_tokens": 669,
+            "provider_cached_input_tokens": 3531,
+            "provider_cache_write_tokens": 1815,
+            "elapsed_ms": 7317
+          }
+        ]
+      },
+      {
+        "label": "시계 이동 뒤·기존 답변 길이, 한라산남벽·애월·성산",
+        "calls": 2,
+        "input_tokens": 9352,
+        "cached_input_tokens": 6988,
+        "cache_write_tokens": 1862,
+        "output_tokens": 562,
+        "elapsed_ms": 9515,
+        "cost_usd_measured": 0.000634,
+        "cost_usd_warm_prefix": 0.000634,
+        "records": [
+          {
+            "input_tokens": 3764,
+            "output_tokens": 98,
+            "provider_cached_input_tokens": 3475,
+            "provider_cache_write_tokens": 38,
+            "elapsed_ms": 3282
+          },
+          {
+            "input_tokens": 5588,
+            "output_tokens": 464,
+            "provider_cached_input_tokens": 3513,
+            "provider_cache_write_tokens": 1824,
+            "elapsed_ms": 6233
+          }
+        ]
+      },
+      {
+        "label": "간결 지시 뒤, 애월·서귀포·성산 (+station_search 병행 호출, 1회차 접두사 콜드 쓰기)",
+        "calls": 2,
+        "input_tokens": 11033,
+        "cached_input_tokens": 3577,
+        "cache_write_tokens": 6954,
+        "output_tokens": 683,
+        "elapsed_ms": 8936,
+        "cost_usd_measured": 0.001297,
+        "cost_usd_warm_prefix": 0.000885,
+        "records": [
+          {
+            "input_tokens": 3828,
+            "output_tokens": 130,
+            "provider_cached_input_tokens": 0,
+            "provider_cache_write_tokens": 3577,
+            "elapsed_ms": 3283
+          },
+          {
+            "input_tokens": 7205,
+            "output_tokens": 553,
+            "provider_cached_input_tokens": 3577,
+            "provider_cache_write_tokens": 3377,
+            "elapsed_ms": 5653
+          }
+        ]
+      },
+      {
+        "label": "간결 지시 뒤, 한라산남벽·애월·성산",
+        "calls": 2,
+        "input_tokens": 9454,
+        "cached_input_tokens": 7088,
+        "cache_write_tokens": 1864,
+        "output_tokens": 455,
+        "elapsed_ms": 6971,
+        "cost_usd_measured": 0.000582,
+        "cost_usd_warm_prefix": 0.000582,
+        "records": [
+          {
+            "input_tokens": 3815,
+            "output_tokens": 98,
+            "provider_cached_input_tokens": 3524,
+            "provider_cache_write_tokens": 40,
+            "elapsed_ms": 2605
+          },
+          {
+            "input_tokens": 5639,
+            "output_tokens": 357,
+            "provider_cached_input_tokens": 3564,
+            "provider_cache_write_tokens": 1824,
+            "elapsed_ms": 4366
+          }
+        ]
+      }
+    ],
+    "unit_cost_usd_warm_prefix_avg": 0.00071,
+    "unit_cost_usd_before_fix": 0.001246,
+    "unit_cost_usd_plan": 0.00054,
+    "peak_month_usd": 296.27,
+    "other_season_month_usd": 197.51,
+    "off_season_month_usd": 24.69,
+    "annual_average_usd": 61.72,
+    "peak_month_krw": 397595,
+    "annual_average_krw": 82832,
+    "response_cache_exact_hits": "같은 질문 재전송 2건은 응답 캐시 exact 적중으로 모델 0회·2.0초 완료",
+    "note": "warm_prefix는 공유 접두사(도구·시스템 프롬프트 약 3,500토큰)가 30분 안에 다른 요청으로 이미 캐시된 상태를 뜻한다. 피크·비수기 모두 분당 1회 이상이라 유지된다. 간결 지시 1회차는 station_search를 병행 호출해 입력이 늘었다."
   }
 }
