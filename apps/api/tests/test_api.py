@@ -528,3 +528,78 @@ def test_session_resume_and_pg18_persistence(client: TestClient, monkeypatch) ->
     assert (
         next(iter(loaded.notebook.values())).activity_text == "PostgreSQL 18 영속 보관 테스트 기록"
     )
+
+
+def test_share_file_disabled_by_default(client: TestClient) -> None:
+    _create_session(client)
+    prepared = client.post("/api/v1/share/file/prepare", json={"share_draft_ids": ["draft"]})
+    assert prepared.status_code == 503
+    assert prepared.json()["error"] == "CAPABILITY_DISABLED"
+    committed = client.post("/api/v1/share/file/commit", json={})
+    assert committed.status_code == 503
+    assert committed.json()["error"] == "CAPABILITY_DISABLED"
+
+
+def test_share_file_flow_when_policy_allows(client: TestClient, monkeypatch) -> None:
+    from gosari.config import Settings
+
+    monkeypatch.setattr(
+        "gosari.api.personal.get_settings",
+        lambda: Settings(app_profile="replay", allow_share_file=True),
+    )
+    _create_session(client)
+    contact_preview = client.post(
+        "/api/v1/contacts/prepare",
+        json={"action": "create", "payload": {"name": "어머니", "relationship": "가족"}},
+    ).json()
+    contact = client.post(
+        "/api/v1/contacts/commit",
+        json=_commit_body(contact_preview, _consent(client, contact_preview)),
+    ).json()
+    share_preview = client.post(
+        "/api/v1/share/prepare",
+        json={
+            "items": [
+                {
+                    "contact_id": contact["result_id"],
+                    "recipient_alias": "어머니",
+                    "amount_value": 2,
+                    "amount_unit": "봉지",
+                    "status": "delivered",
+                    "occurred_on": "2026-04-12",
+                }
+            ]
+        },
+    ).json()
+    draft = client.post(
+        "/api/v1/share/commit", json=_commit_body(share_preview, _consent(client, share_preview))
+    ).json()
+
+    file_preview = client.post(
+        "/api/v1/share/file/prepare",
+        json={"share_draft_ids": [draft["result_id"]], "contact_id": contact["result_id"]},
+    )
+    assert file_preview.status_code == 200
+    file_preview = file_preview.json()
+    assert file_preview["action"] == "share.file"
+    assert file_preview["display"]["filename"].endswith(".txt")
+    assert "2026-04-12 · 어머니 · 2봉지 · 전달 완료" in file_preview["display"]["content"]
+
+    tampered = client.post(
+        "/api/v1/share/file/commit",
+        json={
+            **_commit_body(file_preview, _consent(client, file_preview)),
+            "preview_hash": "0" * 64,
+        },
+    )
+    assert tampered.status_code == 409
+    assert tampered.json()["error"] == "PREVIEW_MISMATCH"
+
+    consent = _consent(client, file_preview)
+    committed = client.post("/api/v1/share/file/commit", json=_commit_body(file_preview, consent))
+    assert committed.status_code == 200
+    body = committed.json()
+    assert body["state"] == "committed"
+    assert body["filename"] == file_preview["display"]["filename"]
+    assert body["content"] == file_preview["display"]["content"]
+    assert client.get("/api/v1/share/").json()["drafts"][0]["revision"] == 1

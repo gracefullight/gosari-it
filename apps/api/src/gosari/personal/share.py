@@ -1,16 +1,22 @@
 """가족·지인 나눔 — 대상·분량·시점 정리와 로컬 문구 (SRS §5.6). 실제 전송 도구 없음."""
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from pydantic import ValidationError
 
+from gosari.config import Settings
 from gosari.domain.errors import GosariError
-from gosari.personal import Preview, ShareDraft, ShareItem
+from gosari.personal import PersonalContact, Preview, ShareDraft, ShareItem
 from gosari.personal.approval import create_preview
-from gosari.sessions import Session, utcnow
+from gosari.sessions import Session, new_id, utcnow
 
 SCHEMA_VERSION = "share-v1"
+FILE_SCHEMA_VERSION = "share-file-v1"
+FILE_NOTE = (
+    "고사리잇에서 사용자가 확정한 나눔 기록을 담은 로컬 파일입니다. 실제 발송 기능은 없습니다."
+)
 
 
 def _validate_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -210,3 +216,135 @@ def execute(session: Session, preview: Preview) -> tuple[str, int]:
     )
     session.share_drafts[draft.share_draft_id] = draft
     return draft.share_draft_id, draft.revision
+
+
+def _format_amount(value: Decimal) -> str:
+    return f"{value.normalize():f}" if value == value.to_integral_value() else str(value)
+
+
+def _file_items(
+    drafts: list[ShareDraft], contact: PersonalContact | None
+) -> list[tuple[ShareDraft, ShareItem]]:
+    pairs = [
+        (draft, item)
+        for draft in drafts
+        for item in draft.items
+        if contact is None
+        or item.contact_id == contact.contact_id
+        or (item.contact_id is None and item.recipient_alias == contact.name)
+    ]
+    return sorted(
+        pairs,
+        key=lambda pair: (
+            pair[1].occurred_on.isoformat()
+            if pair[1].occurred_on
+            else pair[0].prepared_at.date().isoformat()
+        ),
+    )
+
+
+def build_share_file(
+    drafts: list[ShareDraft], contact: PersonalContact | None, prepared_on: date
+) -> tuple[str, str, list[dict[str, Any]]]:
+    """FR-SHARE-005: 미리 본 내용만 담는 텍스트 파일 본문. 서버에는 파일을 남기지 않는다."""
+    pairs = _file_items(drafts, contact)
+    if not pairs:
+        raise GosariError("INVALID_INPUT", {"fields": ["items"]})
+    title = contact.name if contact else "전체"
+    lines = [f"고사리 나눔 기록 · {title}", f"작성일 {prepared_on.isoformat()}", ""]
+    for _draft, item in pairs:
+        when = (
+            item.occurred_on.isoformat()
+            if item.occurred_on
+            else (item.planned_delivery or "날짜 미정")
+        )
+        status = "전달 완료" if item.status == "delivered" else "전달 예정"
+        lines.append(
+            f"- {when} · {item.recipient_alias} · "
+            f"{_format_amount(item.amount_value)}{item.amount_unit} · {status}"
+        )
+    totals = summarize_totals([item for _, item in pairs if item.status == "delivered"])
+    lines.append("")
+    lines.append(
+        "전달 완료 합계: "
+        + (", ".join(f"{total}{unit}" for unit, total in totals.items()) or "없음")
+    )
+    lines.extend(["", FILE_NOTE])
+    safe_title = "".join(ch for ch in title if ch.isalnum()) or "전체"
+    filename = f"나눔기록_{safe_title}_{prepared_on.strftime('%Y%m%d')}.txt"
+    return filename, "\n".join(lines) + "\n", [item.model_dump(mode="json") for _, item in pairs]
+
+
+def prepare_file(
+    session: Session, payload: dict[str, Any], settings: Settings
+) -> tuple[Preview, dict[str, Any]]:
+    """공유 파일 미리보기. 허용 프로파일에서만 준비하고 승인 전에는 아무것도 만들지 않는다."""
+    if not settings.allow_share_file:
+        raise GosariError("CAPABILITY_DISABLED", {"reason": "SHARE_FILE_POLICY_UNCONFIRMED"})
+    if not isinstance(payload, dict):
+        raise GosariError("INVALID_INPUT", {"fields": ["payload"]})
+    draft_ids = _reference_ids(payload.get("share_draft_ids", []), "share_draft_ids")
+    if not draft_ids:
+        raise GosariError("INVALID_INPUT", {"fields": ["share_draft_ids"]})
+    drafts = []
+    for draft_id in draft_ids:
+        draft = session.share_drafts.get(draft_id)
+        if draft is None:
+            raise GosariError("RESOURCE_NOT_FOUND", {"fields": ["share_draft_ids"]})
+        drafts.append(draft)
+    contact_id = payload.get("contact_id")
+    contact = None
+    if contact_id is not None:
+        if not isinstance(contact_id, str) or not contact_id.strip():
+            raise GosariError("INVALID_INPUT", {"fields": ["contact_id"]})
+        contact = session.contacts.get(contact_id)
+        if contact is None:
+            raise GosariError("RESOURCE_NOT_FOUND", {"fields": ["contact_id"]})
+    prepared_at = utcnow()
+    filename, content, items = build_share_file(drafts, contact, prepared_at.date())
+    canonical = {
+        "share_draft_ids": draft_ids,
+        "draft_revisions": {draft.share_draft_id: draft.revision for draft in drafts},
+        "contact_id": contact_id,
+        "filename": filename,
+        "content": content,
+    }
+    display = {
+        "filename": filename,
+        "content": content,
+        "items": items,
+        "unit_totals": summarize_totals(
+            [ShareItem.model_validate(item) for item in items if item["status"] == "delivered"]
+        ),
+    }
+    preview = create_preview(
+        session,
+        "share.file",
+        new_id("file"),
+        0,
+        FILE_SCHEMA_VERSION,
+        canonical,
+        display_payload=display,
+    )
+    return preview, {
+        **display,
+        "prepared_at": prepared_at.isoformat(),
+        "note": (
+            "미리보기입니다. 확정하면 이 내용 그대로 파일 1개를 내려받습니다. "
+            "서버에는 파일이 남지 않습니다."
+        ),
+    }
+
+
+def execute_file(session: Session, preview: Preview) -> tuple[str, int]:
+    """승인된 미리보기의 내용만 파일로 내려준다. 기록은 바꾸지 않는다."""
+    if preview.action != "share.file":
+        raise GosariError("ACTION_NOT_ALLOWED")
+    revisions = preview.canonical_payload.get("draft_revisions", {})
+    for draft_id, revision in revisions.items():
+        draft = session.share_drafts.get(draft_id)
+        if draft is None:
+            raise GosariError("RESOURCE_NOT_FOUND", {"fields": ["share_draft_ids"]})
+        if draft.revision != revision:
+            raise GosariError("REVISION_CONFLICT")
+    return preview.target_id, 0

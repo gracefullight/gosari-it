@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ShareForm } from "@/components/share-form";
 import { api } from "@/lib/gosari.api";
 import type { PersonalContact, ShareDraft } from "@/lib/gosari.types";
-import { appPathAtom } from "@/stores/chat.atoms";
+import { appPathAtom, capabilitiesAtom } from "@/stores/chat.atoms";
 
 const PREVIOUS_SHARING = /이전 나눔/;
 const MOTHER_NAME = /어머니/;
@@ -95,6 +95,46 @@ function mount() {
   );
   return onPreview;
 }
+
+it("keeps the share file button disabled until the center policy allows file creation", async () => {
+  const prepare = vi.spyOn(api, "shareFilePrepare");
+  mount();
+  await screen.findByRole("heading", { name: "어머니" });
+  const button = screen.getByRole("button", { name: "공유 파일" }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(screen.getByText("공유 파일 만들기는 이 센터 설정에서 꺼져 있습니다.")).toBeTruthy();
+  fireEvent.click(button);
+  expect(prepare).not.toHaveBeenCalled();
+});
+
+it("prepares one share file from the selected person's drafts when the policy allows it", async () => {
+  const prepare = vi
+    .spyOn(api, "shareFilePrepare")
+    .mockResolvedValue({ preview_id: "file" } as Awaited<ReturnType<typeof api.shareFilePrepare>>);
+  const store = createStore();
+  store.set(capabilitiesAtom, {
+    profile: "center",
+    runtime_mode: "live",
+    map: { tiles: false, osm_attribution_required: true },
+    llm: { available: false, model: "" },
+    sources: {},
+    files: { share_file: true },
+    cache: { response_cache: false, semantic: false },
+  });
+  const onPreview = vi.fn();
+  render(
+    <Provider store={store}>
+      <ShareForm onPreview={onPreview} />
+    </Provider>
+  );
+  await screen.findByRole("heading", { name: "어머니" });
+  expect(screen.queryByText("공유 파일 만들기는 이 센터 설정에서 꺼져 있습니다.")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "공유 파일" }));
+  await waitFor(() =>
+    expect(prepare).toHaveBeenCalledWith({ share_draft_ids: ["draft"], contact_id: "mother" })
+  );
+  expect(onPreview).toHaveBeenCalledWith({ preview_id: "file" });
+});
 
 it("groups sharing history under people and keeps quantities in their original units", async () => {
   mount();

@@ -1,4 +1,4 @@
-import { PlusIcon, UserCircleIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import { FileTextIcon, PlusIcon, UserCircleIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import { ShareActivityItem, type SharingActivity } from "@/components/share-activity-item";
@@ -18,7 +18,7 @@ import type {
   ShareDraft,
   ShareItem,
 } from "@/lib/gosari.types";
-import { appPathAtom, revisionCounterAtom } from "@/stores/chat.atoms";
+import { appPathAtom, capabilitiesAtom, revisionCounterAtom } from "@/stores/chat.atoms";
 
 interface ShareFormProps {
   onPreview: (preview: Preview) => void;
@@ -39,6 +39,8 @@ function contactForItem(item: ShareItem, contacts: PersonalContact[]): PersonalC
 export function ShareForm({ onPreview }: ShareFormProps) {
   const revision = useAtomValue(revisionCounterAtom);
   const path = useAtomValue(appPathAtom);
+  const capabilities = useAtomValue(capabilitiesAtom);
+  const shareFileAllowed = capabilities?.files?.share_file === true;
   const requestedContact = new URLSearchParams(path.split("?")[1] ?? "").get("contact");
   const [contacts, setContacts] = useState<PersonalContact[]>([]);
   const [drafts, setDrafts] = useState<ShareDraft[]>([]);
@@ -160,6 +162,23 @@ export function ShareForm({ onPreview }: ShareFormProps) {
       onPreview(await api.contactsPrepare({}, "delete", selectedContact.contact_id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "지인 정보를 확인하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function prepareShareFile() {
+    if (!selectedContact || timeline.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onPreview(
+        await api.shareFilePrepare({
+          share_draft_ids: [...new Set(timeline.map((activity) => activity.draft.share_draft_id))],
+          contact_id: selectedContact.contact_id,
+        })
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "공유 파일을 준비하지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -381,6 +400,15 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                         지인 수정
                       </Button>
                       <Button
+                        variant="outline"
+                        disabled={busy || !shareFileAllowed || timeline.length === 0}
+                        aria-describedby={shareFileAllowed ? undefined : "share-file-policy-note"}
+                        onClick={() => void prepareShareFile()}
+                      >
+                        <FileTextIcon />
+                        공유 파일
+                      </Button>
+                      <Button
                         onClick={() => {
                           setEditingActivity(null);
                           setSourceRecord(requestedRecord ?? "");
@@ -400,6 +428,11 @@ export function ShareForm({ onPreview }: ShareFormProps) {
                 {selectedContact?.notes ? (
                   <p className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-muted-foreground">
                     {selectedContact.notes}
+                  </p>
+                ) : null}
+                {selectedContact && !shareFileAllowed ? (
+                  <p id="share-file-policy-note" className="mt-3 text-base text-muted-foreground">
+                    공유 파일 만들기는 이 센터 설정에서 꺼져 있습니다.
                   </p>
                 ) : null}
                 <div className="mt-5 flex flex-wrap gap-x-7 gap-y-2 text-base">

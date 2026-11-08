@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDisplayDate } from "@/lib/date-format";
+import { downloadTextFile } from "@/lib/download-text-file";
 import { ApiError, api, commitPathFor } from "@/lib/gosari.api";
 import type { Consent, Preview } from "@/lib/gosari.types";
 import { clearCommittedNotebookDraftAtom } from "@/stores/notebook-drafts.atoms";
@@ -33,6 +34,7 @@ const ACTION_LABELS: Record<string, string> = {
   "share.save": "나눔 기록 저장",
   "share.update": "나눔 기록 수정",
   "share.delete": "나눔 기록 삭제",
+  "share.file": "공유 파일 생성",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -51,6 +53,8 @@ const FIELD_LABELS: Record<string, string> = {
   public_area_code: "주소·위치 메모",
   items: "나눔 대상 목록",
   unit_totals: "단위별 합계",
+  filename: "파일 이름",
+  content: "파일 내용",
   source_record_ids: "연결할 수첩",
   public_evidence_ids: "연결할 공개 조회",
   private_region_id: "관심 지역 연결",
@@ -134,6 +138,8 @@ export function ApprovalConfirmDialog({
       const result = await api.commit(commitPathFor(preview.action), preview, consent);
       if (result.state === "committed") {
         if (preview.action.startsWith("notebook.")) clearCommittedDraft(preview.preview_id);
+        if (preview.action === "share.file" && typeof result.content === "string")
+          downloadTextFile(result.filename || "나눔기록.txt", result.content);
         onCommitted(`${label} 완료`);
       } else {
         setError(result.safe_error ?? "반영 실패");
@@ -170,7 +176,11 @@ export function ApprovalConfirmDialog({
                 <dt className="min-w-28 shrink-0 font-semibold text-foreground">
                   {FIELD_LABELS[key]}
                 </dt>
-                <dd className="break-words text-foreground">{formattedValue}</dd>
+                <dd
+                  className={`break-words text-foreground ${key === "content" ? "whitespace-pre-wrap" : ""}`}
+                >
+                  {formattedValue}
+                </dd>
               </div>
             );
           })}

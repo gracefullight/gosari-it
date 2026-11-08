@@ -158,11 +158,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -220,11 +227,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -282,11 +296,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -344,11 +365,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -404,11 +432,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -466,11 +501,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -549,11 +591,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -611,11 +660,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -694,11 +750,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -822,11 +885,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -884,11 +954,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -946,11 +1023,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1008,11 +1092,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1090,11 +1181,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1152,11 +1250,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1177,15 +1282,132 @@
       "post": {
         "summary": "FileCommit",
         "operationId": "ApiV1ShareFileCommitFileCommit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "201": {
-            "description": "Document created, URL follows",
+          "200": {
+            "description": "Request fulfilled, document follows",
             "headers": {},
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ShareFileResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/share/file/prepare": {
+      "post": {
+        "summary": "FilePrepare",
+        "operationId": "ApiV1ShareFilePrepareFilePrepare",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
                 }
               }
             }
@@ -1255,11 +1477,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1317,11 +1546,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1379,11 +1615,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1461,11 +1704,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1522,11 +1772,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1584,11 +1841,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1647,11 +1911,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1719,11 +1990,18 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": ["null", "object", "array"]
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
                     }
                   },
                   "type": "object",
-                  "required": ["detail", "status_code"],
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1756,7 +2034,10 @@
           },
           "state": {
             "type": "string",
-            "enum": ["committed", "failed"]
+            "enum": [
+              "committed",
+              "failed"
+            ]
           },
           "result_id": {
             "oneOf": [
@@ -1801,7 +2082,12 @@
           }
         },
         "type": "object",
-        "required": ["action_id", "canonical_command_hash", "consent_id", "state"],
+        "required": [
+          "action_id",
+          "canonical_command_hash",
+          "consent_id",
+          "state"
+        ],
         "title": "ActionResult"
       },
       "CacheCapabilities": {
@@ -1814,12 +2100,20 @@
           }
         },
         "type": "object",
-        "required": ["response_cache", "semantic"],
+        "required": [
+          "response_cache",
+          "semantic"
+        ],
         "title": "CacheCapabilities"
       },
       "CacheResolution": {
         "type": "string",
-        "enum": ["exact_hit", "semantic_hit", "miss", "bypass"],
+        "enum": [
+          "exact_hit",
+          "semantic_hit",
+          "miss",
+          "bypass"
+        ],
         "title": "CacheResolution",
         "default": "bypass"
       },
@@ -1830,7 +2124,11 @@
           },
           "runtime_mode": {
             "type": "string",
-            "enum": ["live", "replay", "limited"]
+            "enum": [
+              "live",
+              "replay",
+              "limited"
+            ]
           },
           "map": {
             "$ref": "#/components/schemas/MapCapabilities"
@@ -1855,7 +2153,15 @@
           }
         },
         "type": "object",
-        "required": ["cache", "files", "llm", "map", "profile", "runtime_mode", "sources"],
+        "required": [
+          "cache",
+          "files",
+          "llm",
+          "map",
+          "profile",
+          "runtime_mode",
+          "sources"
+        ],
         "title": "CapabilitiesResponse"
       },
       "ChatConfirmationResponse": {
@@ -1870,7 +2176,9 @@
           }
         },
         "type": "object",
-        "required": ["preparation"],
+        "required": [
+          "preparation"
+        ],
         "title": "ChatConfirmationResponse"
       },
       "ChatJobResponse": {
@@ -1949,8 +2257,16 @@
             ]
           },
           "personal_form": {
-            "type": ["null", "string"],
-            "enum": ["notebook", "region_compare", "share", null]
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "notebook",
+              "region_compare",
+              "share",
+              null
+            ]
           },
           "kind": {
             "type": "string",
@@ -1959,7 +2275,12 @@
           }
         },
         "type": "object",
-        "required": ["created_at", "job_id", "request_id", "stage"],
+        "required": [
+          "created_at",
+          "job_id",
+          "request_id",
+          "stage"
+        ],
         "title": "ChatJobResponse"
       },
       "Consent": {
@@ -2023,12 +2344,21 @@
           }
         },
         "type": "object",
-        "required": ["contacts"],
+        "required": [
+          "contacts"
+        ],
         "title": "ContactListResponse"
       },
       "DataStatus": {
         "type": "string",
-        "enum": ["complete", "partial", "no_data", "conflict", "needs_confirmation", "unavailable"],
+        "enum": [
+          "complete",
+          "partial",
+          "no_data",
+          "conflict",
+          "needs_confirmation",
+          "unavailable"
+        ],
         "title": "DataStatus"
       },
       "JobResponse": {
@@ -2107,17 +2437,35 @@
             ]
           },
           "personal_form": {
-            "type": ["null", "string"],
-            "enum": ["notebook", "region_compare", "share", null]
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "notebook",
+              "region_compare",
+              "share",
+              null
+            ]
           }
         },
         "type": "object",
-        "required": ["created_at", "job_id", "request_id", "stage"],
+        "required": [
+          "created_at",
+          "job_id",
+          "request_id",
+          "stage"
+        ],
         "title": "JobResponse"
       },
       "LinkStatus": {
         "type": "string",
-        "enum": ["not_requested", "link_ready", "blocked", "unavailable"],
+        "enum": [
+          "not_requested",
+          "link_ready",
+          "blocked",
+          "unavailable"
+        ],
         "title": "LinkStatus",
         "default": "not_requested"
       },
@@ -2128,7 +2476,9 @@
           }
         },
         "type": "object",
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "title": "LiveStatus"
       },
       "LlmCapabilities": {
@@ -2141,7 +2491,10 @@
           }
         },
         "type": "object",
-        "required": ["available", "model"],
+        "required": [
+          "available",
+          "model"
+        ],
         "title": "LlmCapabilities"
       },
       "MapCapabilities": {
@@ -2154,7 +2507,10 @@
           }
         },
         "type": "object",
-        "required": ["osm_attribution_required", "tiles"],
+        "required": [
+          "osm_attribution_required",
+          "tiles"
+        ],
         "title": "MapCapabilities"
       },
       "NotebookEntry": {
@@ -2259,7 +2615,13 @@
           }
         },
         "type": "object",
-        "required": ["activity_text", "created_at", "experience_date", "record_id", "updated_at"],
+        "required": [
+          "activity_text",
+          "created_at",
+          "experience_date",
+          "record_id",
+          "updated_at"
+        ],
         "title": "NotebookEntry"
       },
       "NotebookListResponse": {
@@ -2272,7 +2634,9 @@
           }
         },
         "type": "object",
-        "required": ["entries"],
+        "required": [
+          "entries"
+        ],
         "title": "NotebookListResponse"
       },
       "NotebookRecallResponse": {
@@ -2291,7 +2655,11 @@
           }
         },
         "type": "object",
-        "required": ["count", "entries", "notice"],
+        "required": [
+          "count",
+          "entries",
+          "notice"
+        ],
         "title": "NotebookRecallResponse"
       },
       "PersonalContact": {
@@ -2323,14 +2691,25 @@
           }
         },
         "type": "object",
-        "required": ["contact_id", "created_at", "name", "relationship", "updated_at"],
+        "required": [
+          "contact_id",
+          "created_at",
+          "name",
+          "relationship",
+          "updated_at"
+        ],
         "title": "PersonalContact"
       },
       "PersonalSearchItem": {
         "properties": {
           "kind": {
             "type": "string",
-            "enum": ["notebook", "region", "contact", "share"]
+            "enum": [
+              "notebook",
+              "region",
+              "contact",
+              "share"
+            ]
           },
           "id": {
             "type": "string"
@@ -2353,7 +2732,12 @@
           }
         },
         "type": "object",
-        "required": ["id", "kind", "snippet", "title"],
+        "required": [
+          "id",
+          "kind",
+          "snippet",
+          "title"
+        ],
         "title": "PersonalSearchItem"
       },
       "PersonalSearchRequest": {
@@ -2370,8 +2754,18 @@
             "default": 20
           },
           "kind": {
-            "type": ["null", "string"],
-            "enum": ["notebook", "region", "contact", "share", "all", null]
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "notebook",
+              "region",
+              "contact",
+              "share",
+              "all",
+              null
+            ]
           }
         },
         "type": "object",
@@ -2385,7 +2779,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["hybrid", "keyword"]
+            "enum": [
+              "hybrid",
+              "keyword"
+            ]
           },
           "items": {
             "items": {
@@ -2398,7 +2795,12 @@
           }
         },
         "type": "object",
-        "required": ["answer", "items", "mode", "query"],
+        "required": [
+          "answer",
+          "items",
+          "mode",
+          "query"
+        ],
         "title": "PersonalSearchResponse"
       },
       "PersonalSearchSelection": {
@@ -2408,21 +2810,34 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["notebook", "region", "contact", "share", "all"]
+            "enum": [
+              "notebook",
+              "region",
+              "contact",
+              "share",
+              "all"
+            ]
           },
           "count": {
             "type": "integer"
           }
         },
         "type": "object",
-        "required": ["count", "kind", "query"],
+        "required": [
+          "count",
+          "kind",
+          "query"
+        ],
         "title": "PersonalSearchSelection"
       },
       "PrepareResponse": {
         "properties": {
           "classification": {
             "type": "string",
-            "enum": ["public", "personal"]
+            "enum": [
+              "public",
+              "personal"
+            ]
           },
           "feature": {
             "oneOf": [
@@ -2461,7 +2876,10 @@
           }
         },
         "type": "object",
-        "required": ["classification", "needs_confirmation"],
+        "required": [
+          "classification",
+          "needs_confirmation"
+        ],
         "title": "PrepareResponse"
       },
       "PreviewResponse": {
@@ -2522,7 +2940,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["existing", "interest"]
+            "enum": [
+              "existing",
+              "interest"
+            ]
           },
           "visited_on": {
             "oneOf": [
@@ -2598,7 +3019,13 @@
           }
         },
         "type": "object",
-        "required": ["created_at", "kind", "local_alias", "region_id", "updated_at"],
+        "required": [
+          "created_at",
+          "kind",
+          "local_alias",
+          "region_id",
+          "updated_at"
+        ],
         "title": "PrivateRegion"
       },
       "ProgressEvent": {
@@ -2660,7 +3087,12 @@
           }
         },
         "type": "object",
-        "required": ["event_id", "job_id", "stage", "timestamp"],
+        "required": [
+          "event_id",
+          "job_id",
+          "stage",
+          "timestamp"
+        ],
         "title": "ProgressEvent"
       },
       "ReadinessResponse": {
@@ -2682,7 +3114,13 @@
           }
         },
         "type": "object",
-        "required": ["database", "external_requests", "llm", "profile", "status"],
+        "required": [
+          "database",
+          "external_requests",
+          "llm",
+          "profile",
+          "status"
+        ],
         "title": "ReadinessResponse"
       },
       "RegionListResponse": {
@@ -2695,7 +3133,9 @@
           }
         },
         "type": "object",
-        "required": ["regions"],
+        "required": [
+          "regions"
+        ],
         "title": "RegionListResponse"
       },
       "ResultEnvelope": {
@@ -2803,7 +3243,9 @@
           }
         },
         "type": "object",
-        "required": ["request_id"],
+        "required": [
+          "request_id"
+        ],
         "title": "ResultEnvelope"
       },
       "SessionClosed": {
@@ -2816,7 +3258,10 @@
           }
         },
         "type": "object",
-        "required": ["notice", "status"],
+        "required": [
+          "notice",
+          "status"
+        ],
         "title": "SessionClosed"
       },
       "SessionCreated": {
@@ -2840,7 +3285,13 @@
           }
         },
         "type": "object",
-        "required": ["created_at", "expires_at", "idle_ttl_seconds", "notice", "session_id"],
+        "required": [
+          "created_at",
+          "expires_at",
+          "idle_ttl_seconds",
+          "notice",
+          "session_id"
+        ],
         "title": "SessionCreated"
       },
       "ShareDraft": {
@@ -2890,7 +3341,11 @@
           }
         },
         "type": "object",
-        "required": ["items", "prepared_at", "share_draft_id"],
+        "required": [
+          "items",
+          "prepared_at",
+          "share_draft_id"
+        ],
         "title": "ShareDraft"
       },
       "ShareDraftListResponse": {
@@ -2903,8 +3358,103 @@
           }
         },
         "type": "object",
-        "required": ["drafts"],
+        "required": [
+          "drafts"
+        ],
         "title": "ShareDraftListResponse"
+      },
+      "ShareFileResult": {
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "consent_id": {
+            "type": "string"
+          },
+          "canonical_command_hash": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "committed",
+              "failed"
+            ]
+          },
+          "result_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resulting_revision": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "committed_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filename": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "media_type": {
+            "type": "string",
+            "default": "text/plain; charset=utf-8"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "canonical_command_hash",
+          "consent_id",
+          "state"
+        ],
+        "title": "ShareFileResult"
       },
       "ShareItem": {
         "properties": {
@@ -2960,12 +3510,19 @@
           },
           "status": {
             "type": "string",
-            "enum": ["planned", "delivered"],
+            "enum": [
+              "planned",
+              "delivered"
+            ],
             "default": "planned"
           }
         },
         "type": "object",
-        "required": ["amount_unit", "amount_value", "recipient_alias"],
+        "required": [
+          "amount_unit",
+          "amount_value",
+          "recipient_alias"
+        ],
         "title": "ShareItem"
       },
       "SharePreviewResponse": {
@@ -3022,7 +3579,13 @@
       },
       "SourceMode": {
         "type": "string",
-        "enum": ["fetched", "cache", "replay", "link", "permitted_file"],
+        "enum": [
+          "fetched",
+          "cache",
+          "replay",
+          "link",
+          "permitted_file"
+        ],
         "title": "SourceMode"
       },
       "UiElement": {
@@ -3052,7 +3615,9 @@
           }
         },
         "type": "object",
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "title": "UiElement"
       },
       "UiSpec": {
@@ -3068,7 +3633,10 @@
           }
         },
         "type": "object",
-        "required": ["elements", "root"],
+        "required": [
+          "elements",
+          "root"
+        ],
         "title": "UiSpec"
       },
       "WeatherLocation": {
@@ -3127,7 +3695,13 @@
           },
           "condition": {
             "type": "string",
-            "enum": ["clear", "cloudy", "rain", "snow", "unknown"],
+            "enum": [
+              "clear",
+              "cloudy",
+              "rain",
+              "snow",
+              "unknown"
+            ],
             "default": "unknown"
           },
           "forecast_at": {
@@ -3135,7 +3709,13 @@
           }
         },
         "type": "object",
-        "required": ["forecast_at", "id", "latitude", "longitude", "name"],
+        "required": [
+          "forecast_at",
+          "id",
+          "latitude",
+          "longitude",
+          "name"
+        ],
         "title": "WeatherLocation"
       },
       "WeatherResponse": {
@@ -3175,11 +3755,18 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["forecast", "historical"]
+            "enum": [
+              "forecast",
+              "historical"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["complete", "partial", "unavailable"]
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
           },
           "min_date": {
             "type": "string"
@@ -3189,7 +3776,15 @@
           }
         },
         "type": "object",
-        "required": ["date", "kind", "locations", "max_date", "min_date", "status", "updated_at"],
+        "required": [
+          "date",
+          "kind",
+          "locations",
+          "max_date",
+          "min_date",
+          "status",
+          "updated_at"
+        ],
         "title": "WeatherResponse"
       }
     }

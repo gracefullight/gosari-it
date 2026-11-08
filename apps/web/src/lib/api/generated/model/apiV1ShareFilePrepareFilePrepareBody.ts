@@ -5,4 +5,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ApiV1ShareFileCommitFileCommit201 = {[key: string]: unknown};
+export type ApiV1ShareFilePrepareFilePrepareBody = {[key: string]: unknown};

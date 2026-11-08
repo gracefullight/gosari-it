@@ -64,7 +64,10 @@ import type {
   ApiV1RegionsPreparePrepareBody,
   ApiV1ShareCommitCommit400,
   ApiV1ShareCommitCommitBody,
-  ApiV1ShareFileCommitFileCommit201,
+  ApiV1ShareFileCommitFileCommit400,
+  ApiV1ShareFileCommitFileCommitBody,
+  ApiV1ShareFilePrepareFilePrepare400,
+  ApiV1ShareFilePrepareFilePrepareBody,
   ApiV1SharePreparePrepare400,
   ApiV1SharePreparePrepareBody,
   ApiV1WeatherGetWeather400,
@@ -89,6 +92,7 @@ import type {
   SessionClosed,
   SessionCreated,
   ShareDraftListResponse,
+  ShareFileResult,
   SharePreviewResponse,
   WeatherResponse
 } from './model';
@@ -2672,17 +2676,24 @@ export const useApiV1ShareCommitCommit = <TError = ApiV1ShareCommitCommit400,
       return useMutation(getApiV1ShareCommitCommitMutationOptions(options), queryClient);
     }
 
-export type apiV1ShareFileCommitFileCommitResponse201 = {
-  data: ApiV1ShareFileCommitFileCommit201
-  status: 201
+export type apiV1ShareFileCommitFileCommitResponse200 = {
+  data: ShareFileResult
+  status: 200
 }
 
-export type apiV1ShareFileCommitFileCommitResponseSuccess = (apiV1ShareFileCommitFileCommitResponse201) & {
+export type apiV1ShareFileCommitFileCommitResponse400 = {
+  data: ApiV1ShareFileCommitFileCommit400
+  status: 400
+}
+
+export type apiV1ShareFileCommitFileCommitResponseSuccess = (apiV1ShareFileCommitFileCommitResponse200) & {
   headers: Headers;
 };
-;
+export type apiV1ShareFileCommitFileCommitResponseError = (apiV1ShareFileCommitFileCommitResponse400) & {
+  headers: Headers;
+};
 
-export type apiV1ShareFileCommitFileCommitResponse = (apiV1ShareFileCommitFileCommitResponseSuccess)
+export type apiV1ShareFileCommitFileCommitResponse = (apiV1ShareFileCommitFileCommitResponseSuccess | apiV1ShareFileCommitFileCommitResponseError)
 
 export const getApiV1ShareFileCommitFileCommitUrl = () => {
 
@@ -2695,14 +2706,28 @@ export const getApiV1ShareFileCommitFileCommitUrl = () => {
 /**
  * @summary FileCommit
  */
-export const apiV1ShareFileCommitFileCommit = async ( options?: Parameters<typeof customFetch>[1]): Promise<apiV1ShareFileCommitFileCommitResponse> => {
+export const apiV1ShareFileCommitFileCommit = async (apiV1ShareFileCommitFileCommitBody: ApiV1ShareFileCommitFileCommitBody, options?: Parameters<typeof customFetch>[1]): Promise<apiV1ShareFileCommitFileCommitResponse> => {
 
-  return customFetch<apiV1ShareFileCommitFileCommitResponse>(getApiV1ShareFileCommitFileCommitUrl(),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<apiV1ShareFileCommitFileCommitResponse>(getApiV1ShareFileCommitFileCommitUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(apiV1ShareFileCommitFileCommitBody)
   }
 );}
 
@@ -2712,9 +2737,9 @@ export const apiV1ShareFileCommitFileCommit = async ( options?: Parameters<typeo
 
 export const getApiV1ShareFileCommitFileCommitMutationKey = () => ['apiV1ShareFileCommitFileCommit'] as const;
 
-export const getApiV1ShareFileCommitFileCommitMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,void, TContext> => {
+export const getApiV1ShareFileCommitFileCommitMutationOptions = <TError = ApiV1ShareFileCommitFileCommit400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,ApiV1ShareFileCommitFileCommitMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,ApiV1ShareFileCommitFileCommitMutationVariables, TContext> => {
 
 const mutationKey = getApiV1ShareFileCommitFileCommitMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2726,10 +2751,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, ApiV1ShareFileCommitFileCommitMutationVariables> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  apiV1ShareFileCommitFileCommit(requestOptions)
+          return  apiV1ShareFileCommitFileCommit(data,requestOptions)
         }
 
 
@@ -2740,22 +2765,129 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ApiV1ShareFileCommitFileCommitMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>>
-
-    export type ApiV1ShareFileCommitFileCommitMutationError = unknown
-
+    export type ApiV1ShareFileCommitFileCommitMutationBody = ApiV1ShareFileCommitFileCommitBody
+    export type ApiV1ShareFileCommitFileCommitMutationError = ApiV1ShareFileCommitFileCommit400
+    export type ApiV1ShareFileCommitFileCommitMutationVariables = {data: ApiV1ShareFileCommitFileCommitBody}
 
     /**
  * @summary FileCommit
  */
-export const useApiV1ShareFileCommitFileCommit = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useApiV1ShareFileCommitFileCommit = <TError = ApiV1ShareFileCommitFileCommit400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>, TError,ApiV1ShareFileCommitFileCommitMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof apiV1ShareFileCommitFileCommit>>,
         TError,
-        void,
+        ApiV1ShareFileCommitFileCommitMutationVariables,
         TContext
       > => {
       return useMutation(getApiV1ShareFileCommitFileCommitMutationOptions(options), queryClient);
+    }
+
+export type apiV1ShareFilePrepareFilePrepareResponse200 = {
+  data: SharePreviewResponse
+  status: 200
+}
+
+export type apiV1ShareFilePrepareFilePrepareResponse400 = {
+  data: ApiV1ShareFilePrepareFilePrepare400
+  status: 400
+}
+
+export type apiV1ShareFilePrepareFilePrepareResponseSuccess = (apiV1ShareFilePrepareFilePrepareResponse200) & {
+  headers: Headers;
+};
+export type apiV1ShareFilePrepareFilePrepareResponseError = (apiV1ShareFilePrepareFilePrepareResponse400) & {
+  headers: Headers;
+};
+
+export type apiV1ShareFilePrepareFilePrepareResponse = (apiV1ShareFilePrepareFilePrepareResponseSuccess | apiV1ShareFilePrepareFilePrepareResponseError)
+
+export const getApiV1ShareFilePrepareFilePrepareUrl = () => {
+
+
+
+
+  return `/api/v1/share/file/prepare`
+}
+
+/**
+ * @summary FilePrepare
+ */
+export const apiV1ShareFilePrepareFilePrepare = async (apiV1ShareFilePrepareFilePrepareBody: ApiV1ShareFilePrepareFilePrepareBody, options?: Parameters<typeof customFetch>[1]): Promise<apiV1ShareFilePrepareFilePrepareResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<apiV1ShareFilePrepareFilePrepareResponse>(getApiV1ShareFilePrepareFilePrepareUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(apiV1ShareFilePrepareFilePrepareBody)
+  }
+);}
+
+
+
+
+
+export const getApiV1ShareFilePrepareFilePrepareMutationKey = () => ['apiV1ShareFilePrepareFilePrepare'] as const;
+
+export const getApiV1ShareFilePrepareFilePrepareMutationOptions = <TError = ApiV1ShareFilePrepareFilePrepare400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>, TError,ApiV1ShareFilePrepareFilePrepareMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>, TError,ApiV1ShareFilePrepareFilePrepareMutationVariables, TContext> => {
+
+const mutationKey = getApiV1ShareFilePrepareFilePrepareMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>, ApiV1ShareFilePrepareFilePrepareMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  apiV1ShareFilePrepareFilePrepare(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApiV1ShareFilePrepareFilePrepareMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>>
+    export type ApiV1ShareFilePrepareFilePrepareMutationBody = ApiV1ShareFilePrepareFilePrepareBody
+    export type ApiV1ShareFilePrepareFilePrepareMutationError = ApiV1ShareFilePrepareFilePrepare400
+    export type ApiV1ShareFilePrepareFilePrepareMutationVariables = {data: ApiV1ShareFilePrepareFilePrepareBody}
+
+    /**
+ * @summary FilePrepare
+ */
+export const useApiV1ShareFilePrepareFilePrepare = <TError = ApiV1ShareFilePrepareFilePrepare400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>, TError,ApiV1ShareFilePrepareFilePrepareMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof apiV1ShareFilePrepareFilePrepare>>,
+        TError,
+        ApiV1ShareFilePrepareFilePrepareMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApiV1ShareFilePrepareFilePrepareMutationOptions(options), queryClient);
     }
 
 export type apiV1ShareListDraftsResponse200 = {

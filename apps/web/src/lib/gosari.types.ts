@@ -175,6 +175,10 @@ export interface ActionResult {
   result_id: string | null;
   resulting_revision: number | null;
   safe_error: string | null;
+  /** share.file 커밋만 채운다: 승인한 미리보기 내용 그대로의 파일 1개 */
+  filename?: string | null;
+  content?: string | null;
+  media_type?: string;
 }
 
 export interface Capabilities {

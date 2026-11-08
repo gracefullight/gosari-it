@@ -61,6 +61,14 @@ class ShareDraftListResponse(BaseModel):
     drafts: list[ShareDraft]
 
 
+class ShareFileResult(ActionResult):
+    """공유 파일 커밋 결과 — 승인된 미리보기 내용 그대로의 파일 1개를 응답에 담는다."""
+
+    filename: str | None = None
+    content: str | None = None
+    media_type: str = "text/plain; charset=utf-8"
+
+
 def _preview_response(preview: Preview) -> PreviewResponse:
     return PreviewResponse(
         preview_id=preview.preview_id,
@@ -96,9 +104,7 @@ class NotebookController(Controller):
     path = "/notebook"
 
     @post("/prepare", sync_to_thread=True)
-    def prepare(
-        self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> PreviewResponse:
+    def prepare(self, request: Request[Any, Any, Any], data: dict[str, Any]) -> PreviewResponse:
         check_origin(request)
         session = current_session(request)
         settings = get_settings()
@@ -156,9 +162,7 @@ class NotebookController(Controller):
         )
 
     @get("/{record_id:str}", sync_to_thread=True)
-    def get_entry(
-        self, request: Request[Any, Any, Any], record_id: str
-    ) -> Response[NotebookEntry]:
+    def get_entry(self, request: Request[Any, Any, Any], record_id: str) -> Response[NotebookEntry]:
         session = current_session(request)
         entry = session.notebook.get(record_id)
         if entry is None:
@@ -203,9 +207,7 @@ class RegionsController(Controller):
     path = "/regions"
 
     @post("/prepare", sync_to_thread=True)
-    def prepare(
-        self, request: Request[Any, Any, Any], data: dict[str, Any]
-    ) -> PreviewResponse:
+    def prepare(self, request: Request[Any, Any, Any], data: dict[str, Any]) -> PreviewResponse:
         check_origin(request)
         session = current_session(request)
         action = data.get("action", "create")
@@ -292,17 +294,50 @@ class ShareController(Controller):
         return Response(result, headers={"Cache-Control": "no-store"})
 
     @get("/", sync_to_thread=True)
-    def list_drafts(
-        self, request: Request[Any, Any, Any]
-    ) -> Response[ShareDraftListResponse]:
+    def list_drafts(self, request: Request[Any, Any, Any]) -> Response[ShareDraftListResponse]:
         session = current_session(request)
         return Response(
             ShareDraftListResponse(drafts=list(session.share_drafts.values())),
             headers={"Cache-Control": "no-store"},
         )
 
-    @post("/file/commit", sync_to_thread=True)
-    def file_commit(self, request: Request[Any, Any, Any]) -> dict[str, Any]:
+    @post("/file/prepare", sync_to_thread=True, status_code=200)
+    def file_prepare(
+        self, request: Request[Any, Any, Any], data: dict[str, Any]
+    ) -> Response[SharePreviewResponse]:
         check_origin(request)
-        current_session(request)
-        raise GosariError("CAPABILITY_DISABLED", {"reason": "SHARE_FILE_POLICY_UNCONFIRMED"})
+        session = current_session(request)
+        preview, display = share.prepare_file(session, data, get_settings())
+        return Response(
+            SharePreviewResponse(**_preview_response(preview).model_dump(), display=display),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @post("/file/commit", sync_to_thread=True, status_code=200)
+    def file_commit(
+        self, request: Request[Any, Any, Any], data: dict[str, Any]
+    ) -> Response[ShareFileResult]:
+        check_origin(request)
+        session = current_session(request)
+        if not get_settings().allow_share_file:
+            raise GosariError("CAPABILITY_DISABLED", {"reason": "SHARE_FILE_POLICY_UNCONFIRMED"})
+        body = _commit_body(data)
+        result = commit(
+            session,
+            body["consent_id"],
+            body["preview_id"],
+            body["action"],
+            body["target_id"],
+            int(body["target_revision"]),
+            body["preview_hash"],
+            share.execute_file,
+        )
+        payload = session.previews[body["preview_id"]].canonical_payload
+        return Response(
+            ShareFileResult(
+                **result.model_dump(),
+                filename=str(payload["filename"]),
+                content=str(payload["content"]),
+            ),
+            headers={"Cache-Control": "no-store", "Content-Disposition": "inline"},
+        )

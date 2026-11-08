@@ -226,3 +226,48 @@ def test_share_http_crud_requires_confirmation_and_keeps_other_records(monkeypat
         assert len(client.get("/api/v1/share/").json()["drafts"]) == 1
         confirm(delete)
         assert client.get("/api/v1/share/").json()["drafts"] == []
+
+
+def test_share_file_preview_follows_policy_contact_scope_and_revision():
+    session = Session(Settings())
+    draft_id, _, contact_id = make_draft(session)
+    with pytest.raises(GosariError) as denied:
+        share.prepare_file(
+            session, {"share_draft_ids": [draft_id]}, Settings(allow_share_file=False)
+        )
+    assert denied.value.code == "CAPABILITY_DISABLED"
+    assert denied.value.extra == {"reason": "SHARE_FILE_POLICY_UNCONFIRMED"}
+
+    allowed = Settings(allow_share_file=True)
+    preview, display = share.prepare_file(
+        session, {"share_draft_ids": [draft_id], "contact_id": contact_id}, allowed
+    )
+    assert preview.action == "share.file"
+    assert preview.schema_version == "share-file-v1"
+    assert display["filename"].startswith("나눔기록_어머니_")
+    assert display["filename"].endswith(".txt")
+    assert "어머니 · 2봉지 · 전달 예정" in display["content"]
+    assert "실제 발송 기능은 없습니다" in display["content"]
+    assert preview.canonical_payload["content"] == display["content"]
+    assert preview.canonical_payload["draft_revisions"] == {draft_id: 1}
+    assert preview.display_payload["items"][0]["recipient_alias"] == "어머니"
+    assert "message" not in display
+
+    with pytest.raises(GosariError) as missing_contact:
+        share.prepare_file(
+            session, {"share_draft_ids": [draft_id], "contact_id": "nobody"}, allowed
+        )
+    assert missing_contact.value.code == "RESOURCE_NOT_FOUND"
+    with pytest.raises(GosariError) as missing_draft:
+        share.prepare_file(session, {"share_draft_ids": ["ghost"]}, allowed)
+    assert missing_draft.value.code == "RESOURCE_NOT_FOUND"
+    with pytest.raises(GosariError) as empty:
+        share.prepare_file(session, {"share_draft_ids": []}, allowed)
+    assert empty.value.code == "INVALID_INPUT"
+
+    assert share.execute_file(session, preview) == (preview.target_id, 0)
+    assert session.share_drafts[draft_id].revision == 1
+    session.share_drafts[draft_id].revision = 2
+    with pytest.raises(GosariError) as conflict:
+        share.execute_file(session, preview)
+    assert conflict.value.code == "REVISION_CONFLICT"

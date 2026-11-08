@@ -196,6 +196,11 @@ export const api = {
         action === "save" ? payload : { action, share_draft_id: draftId, payload }
       ),
     }),
+  shareFilePrepare: (payload: { share_draft_ids: string[]; contact_id?: string }) =>
+    request<Preview>("/api/v1/share/file/prepare", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   consent: (preview: Preview) =>
     request<Consent>("/api/v1/consents/", {
       method: "POST",
@@ -223,6 +228,7 @@ export function commitPathFor(action: string): string {
   if (action.startsWith("contact.")) return "/api/v1/contacts/commit";
   if (action.startsWith("notebook.")) return "/api/v1/notebook/commit";
   if (action.startsWith("region.")) return "/api/v1/regions/commit";
+  if (action === "share.file") return "/api/v1/share/file/commit";
   if (action.startsWith("share.")) return "/api/v1/share/commit";
   throw new Error(`알 수 없는 액션: ${action}`);
 }
