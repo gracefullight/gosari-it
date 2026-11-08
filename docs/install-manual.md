@@ -2,13 +2,13 @@
 
 ## 1. 구성과 실행 주소
 
-| 구성 | 역할 |
-| --- | --- |
-| 앱 | Litestar/Uvicorn API와 Vite 정적 UI를 같은 포트에서 제공 |
-| DB | PostgreSQL 18·pgvector. 공개 캐시·근거와 세션별 개인 자료 저장 |
-| 초기화 | `db-init`가 vector 확장·앱 역할·migration 수행 |
-| 네이티브 개발 | API 8000·Vite 5173·로컬 DB 15432 |
-| Compose | 기본 UI/API `http://127.0.0.1:8765`, DB 내부 주소 `db:5432` |
+| 구성          | 역할                                                           |
+| ------------- | -------------------------------------------------------------- |
+| 앱            | Litestar/Uvicorn API와 Vite 정적 UI를 같은 포트에서 제공       |
+| DB            | PostgreSQL 18·pgvector. 공개 캐시·근거와 세션별 개인 자료 저장 |
+| 초기화        | `db-init`가 vector 확장·앱 역할·migration 수행                 |
+| 네이티브 개발 | API 8000·Vite 5173·로컬 DB 15432                               |
+| Compose       | 기본 UI/API `http://127.0.0.1:8765`, DB 내부 주소 `db:5432`    |
 
 이미지의 Node·Python·uv·Dockerfile frontend 기반은 제출 빌드에 사용한 실제 digest로 고정하고, Bun·Python 의존성은 잠금 파일을 사용한다. 최종 이미지·플랫폼 식별자는 검증 영수증을 따른다.
 
@@ -18,21 +18,21 @@
 
 API는 `apps/api/.env`, 웹은 `apps/web/.env`를 사용한다. 예제는 각 앱의 `.env.example`에 있다. 없는 파일은 `mise run init`으로 만들며 기존 값과 DB 볼륨을 유지한다.
 
-| API 설정 | 용도 |
-| --- | --- |
-| `DB_HOST`·`DB_PORT`·`DB_NAME`·`DB_USER` | DB 연결 |
-| `DB_PASSWORD`·`DB_ADMIN_PASSWORD` | 앱 역할·초기화 관리자 비밀번호 |
-| `EXTERNAL_REQUESTS_ENABLED` | 기관 분석·모델 외부 요청 게이트 |
-| `OPENAI_API_KEY`·`LLM_MODEL` | 모델 인증·모델명, 기본 `gpt-6-luna` |
-| `JEJU_PROJECT_KEY` | 제주데이터허브 |
-| `KMA_SERVICE_KEY` | 공공데이터포털 기상청 |
-| `KMA_HUB_KEY` | 선택적 별도 API허브 AWS 경로 |
-| `AT_SERVICE_KEY` | 공공데이터포털 aT |
-| `VWORLD_API_KEY`·`VWORLD_DOMAIN` | 브이월드 전용 키·등록 도메인 |
-| `RESPONSE_CACHE_ENABLED` | DB 공용 캐시 사용 |
-| `DOMAIN_THRESHOLD_CONFIG` | 의미 캐시 임계값, 기본 0.95·실제 유사도는 이를 초과해야 함 |
-| `EMBEDDING_MODEL_PATH`·`EMBEDDING_REVISION` | 로컬 임베딩 모델·리비전 |
-| `APP_PORT`·`GOSARI_APP_IMAGE`·`GOSARI_DB_IMAGE` | Compose 포트·이미지 참조 |
+| API 설정                                        | 용도                                                       |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `DB_HOST`·`DB_PORT`·`DB_NAME`·`DB_USER`         | DB 연결                                                    |
+| `DB_PASSWORD`·`DB_ADMIN_PASSWORD`               | 앱 역할·초기화 관리자 비밀번호                             |
+| `EXTERNAL_REQUESTS_ENABLED`                     | 기관 분석·모델 외부 요청 게이트                            |
+| `OPENAI_API_KEY`·`LLM_MODEL`                    | 모델 인증·모델명, 기본 `gpt-6-luna`                        |
+| `JEJU_PROJECT_KEY`                              | 제주데이터허브                                             |
+| `KMA_SERVICE_KEY`                               | 공공데이터포털 기상청                                      |
+| `KMA_HUB_KEY`                                   | 선택적 별도 API허브 AWS 경로                               |
+| `AT_SERVICE_KEY`                                | 공공데이터포털 aT                                          |
+| `VWORLD_API_KEY`·`VWORLD_DOMAIN`                | 브이월드 전용 키·등록 도메인                               |
+| `RESPONSE_CACHE_ENABLED`                        | DB 공용 캐시 사용                                          |
+| `DOMAIN_THRESHOLD_CONFIG`                       | 의미 캐시 임계값, 기본 0.95·실제 유사도는 이를 초과해야 함 |
+| `EMBEDDING_MODEL_PATH`·`EMBEDDING_REVISION`     | 로컬 임베딩 모델·리비전                                    |
+| `APP_PORT`·`GOSARI_APP_IMAGE`·`GOSARI_DB_IMAGE` | Compose 포트·이미지 참조                                   |
 
 예시의 키는 가짜 값이다. 실제 값은 API 설정에만 입력한다.
 
@@ -108,13 +108,13 @@ mise run infra:down
 
 ## 5. 연결과 기능 확인
 
-| 주소 | 확인 내용 |
-| --- | --- |
-| `/api/v1/health/live` | API 프로세스 응답 |
-| `/api/v1/health/ready` | DB를 포함한 준비 상태 |
+| 주소                    | 확인 내용               |
+| ----------------------- | ----------------------- |
+| `/api/v1/health/live`   | API 프로세스 응답       |
+| `/api/v1/health/ready`  | DB를 포함한 준비 상태   |
 | `/api/v1/capabilities/` | 실제 설정의 기능 가용성 |
-| `/schema/openapi.json` | 등록된 API 명세 JSON |
-| `/` | 웹 UI |
+| `/schema/openapi.json`  | 등록된 API 명세 JSON    |
+| `/`                     | 웹 UI                   |
 
 기관 분석과 모델 전송 게이트가 꺼져 있어도 지도용 Open-Meteo·지도 타일·주소 검색·브라우저 음성은 별도 경로를 사용한다. 완전한 오프라인 실행과 구분한다. 브이월드는 공공데이터포털 공통키가 아닌 전용 키와 등록 도메인을 사용한다.
 
@@ -161,13 +161,13 @@ mise run submission:package -- --proposal path/to/reviewed.pdf --receipt docs/ve
 
 ## 9. 문제 해결
 
-| 증상 | 확인 |
-| --- | --- |
-| Docker 연결 실패 | 로컬 Docker 엔진·context·포트 |
-| API 응답만 되고 준비 상태 실패 | DB 호스트·포트·기존 비밀번호와 `/health/ready` |
-| 자유 대화 실패 | OpenAI 키·모델 접근·외부 요청 설정·작업 오류 |
-| 기관 조회 실패 | 기관별 활용신청·키·쿼터·실패 범위 |
-| 브이월드 인증 실패 | 전용 키와 등록 도메인 |
-| 지도가 열리지 않음 | 타일 네트워크·브라우저 WebGL. 지역 목록으로 날씨 확인 |
-| 음성 입력 실패 | 지원 브라우저·마이크 권한·장치·인식 서비스 연결 |
-| 포트 충돌 | API `.env`의 `APP_PORT`와 기존 실행 프로세스 |
+| 증상                           | 확인                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| Docker 연결 실패               | 로컬 Docker 엔진·context·포트                         |
+| API 응답만 되고 준비 상태 실패 | DB 호스트·포트·기존 비밀번호와 `/health/ready`        |
+| 자유 대화 실패                 | OpenAI 키·모델 접근·외부 요청 설정·작업 오류          |
+| 기관 조회 실패                 | 기관별 활용신청·키·쿼터·실패 범위                     |
+| 브이월드 인증 실패             | 전용 키와 등록 도메인                                 |
+| 지도가 열리지 않음             | 타일 네트워크·브라우저 WebGL. 지역 목록으로 날씨 확인 |
+| 음성 입력 실패                 | 지원 브라우저·마이크 권한·장치·인식 서비스 연결       |
+| 포트 충돌                      | API `.env`의 `APP_PORT`와 기존 실행 프로세스          |

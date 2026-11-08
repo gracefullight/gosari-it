@@ -24,10 +24,7 @@
     "separate_session_isolated": true,
     "inclusive_date_filter": true,
     "personal_search_mode": "hybrid",
-    "personal_search_kinds": [
-      "notebook",
-      "region"
-    ]
+    "personal_search_kinds": ["notebook", "region"]
   },
   "restart_persistence": {
     "restart_restored": {
