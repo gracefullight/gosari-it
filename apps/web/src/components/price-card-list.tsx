@@ -37,6 +37,8 @@ export interface PriceCardData {
 interface PriceCardListProps {
   cards: PriceCardData[];
   links?: PriceCardData[];
+  displayMode?: "pack" | "kg";
+  onDisplayModeChange?: (mode: "pack" | "kg") => void;
 }
 
 const PRICE_COLUMNS =
@@ -71,8 +73,14 @@ function priceLabel(card: PriceCardData, perKg: boolean): string {
   return `${card.price_value.toLocaleString()}원${unit ? ` / ${unit}` : ""}`;
 }
 
-export function PriceCardList({ cards }: PriceCardListProps) {
-  const [displayMode, setDisplayMode] = useState<"pack" | "kg">("pack");
+export function PriceCardList({
+  cards,
+  displayMode: controlledDisplayMode,
+  onDisplayModeChange,
+}: PriceCardListProps) {
+  const [localDisplayMode, setLocalDisplayMode] = useState<"pack" | "kg">("pack");
+  const displayMode = controlledDisplayMode ?? localDisplayMode;
+  const setDisplayMode = onDisplayModeChange ?? setLocalDisplayMode;
   const canCompare = cards.some(
     (card) => card.price_per_kg_value != null && card.net_weight_value !== 1000
   );

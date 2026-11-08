@@ -1,30 +1,26 @@
 import { ArrowsClockwiseIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useAtom } from "jotai";
+import { useEffect, useState } from "react";
 import { DatePickerField } from "@/components/date-picker-field";
 import { type PriceCardData, PriceCardList } from "@/components/price-card-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type PriceChannel, type PriceFilters, priceQueryOptions } from "@/lib/price.queries";
+import {
+  type PriceLookupState,
+  type PriceMarketOptions,
+  type PriceOption,
+  priceLookupStateAtom,
+} from "@/stores/price-lookup.atoms";
 
 const CHANNELS: { value: PriceChannel; label: string }[] = [
   { value: "retail", label: "소매 판매가" },
   { value: "survey", label: "지역 조사가" },
   { value: "wholesale", label: "도매 거래" },
 ];
-interface Option {
-  value: string;
-  label: string;
-}
-interface MarketOptions {
-  markets: Option[];
-  forms: Option[];
-  grades: Option[];
-  packages: Option[];
-  weights?: Option[];
-}
-const DEFAULT_OPTIONS: MarketOptions = {
+const DEFAULT_OPTIONS: PriceMarketOptions = {
   markets: [{ value: "110001", label: "서울가락" }],
   forms: [
     { value: "생고사리", label: "생고사리" },
@@ -33,12 +29,15 @@ const DEFAULT_OPTIONS: MarketOptions = {
   grades: [],
   packages: [],
 };
-function mergeOptionNames(previous: Option[], current: Option[]): Option[] {
-  const byValue = new Map<string, Option>();
+function mergeOptionNames(previous: PriceOption[], current: PriceOption[]): PriceOption[] {
+  const byValue = new Map<string, PriceOption>();
   for (const option of [...previous, ...current]) byValue.set(option.value, option);
   return [...byValue.values()];
 }
-function rememberMarketOptions(previous: MarketOptions, current: MarketOptions): MarketOptions {
+function rememberMarketOptions(
+  previous: PriceMarketOptions,
+  current: PriceMarketOptions
+): PriceMarketOptions {
   return {
     markets: mergeOptionNames(previous.markets, current.markets),
     forms: mergeOptionNames(previous.forms, current.forms),
@@ -81,25 +80,52 @@ const selectClass =
   "min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
 export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?: PriceChannel }) {
-  const [channel, setChannel] = useState<PriceChannel>(initialChannel);
-  const [filters, setFilters] = useState(initialFilters);
-  const [applied, setApplied] = useState(initialFilters);
-  const [appliedLabels, setAppliedLabels] = useState<MarketOptions>(DEFAULT_OPTIONS);
-  const [options, setOptions] = useState<MarketOptions>(DEFAULT_OPTIONS);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [initialState] = useState<PriceLookupState>(() => {
+    const filters = initialFilters();
+    return {
+      channel: initialChannel,
+      filters,
+      applied: { ...filters, market_ids: [...filters.market_ids] },
+      optionNames: DEFAULT_OPTIONS,
+      filtersOpen: true,
+      extraFiltersOpen: false,
+      displayMode: "pack",
+    };
+  });
+  const [storedState, setStoredState] = useAtom(priceLookupStateAtom);
+  useEffect(() => {
+    setStoredState((previous) => previous ?? initialState);
+  }, [initialState, setStoredState]);
+  const state = storedState ?? initialState;
+  const { channel, filters, applied, filtersOpen } = state;
   const query = useQuery(priceQueryOptions(channel, applied));
   const result = query.data?.result;
   const samples = result?.sample_cards as PriceCardData[] | undefined;
   const links = result?.links as PriceCardData[] | undefined;
   const cards = (result?.price_cards as PriceCardData[] | undefined) ?? samples ?? links;
-  const receivedOptions = result?.options as MarketOptions | undefined;
-  if (receivedOptions && receivedOptions !== options) setOptions(receivedOptions);
+  const receivedOptions = result?.options as PriceMarketOptions | undefined;
+  const options = receivedOptions ?? state.optionNames;
+  const appliedLabels = receivedOptions
+    ? rememberMarketOptions(state.optionNames, receivedOptions)
+    : state.optionNames;
+  const updateState = (update: (previous: PriceLookupState) => PriceLookupState) => {
+    setStoredState((previous) => {
+      const current = previous ?? initialState;
+      return update({
+        ...current,
+        optionNames: receivedOptions
+          ? rememberMarketOptions(current.optionNames, receivedOptions)
+          : current.optionNames,
+      });
+    });
+  };
   const failed = result?.failed_scope as
     | { settlement_date: string; market_code: string; remaining_scope?: unknown }[]
     | undefined;
   const unavailable = result?.reason === "AT_KEY_MISSING" || result?.reason === "LIVE_DISABLED";
   const update = (name: keyof PriceFilters, value: string | string[]) =>
-    setFilters((old) => ({ ...old, [name]: value }));
+    updateState((old) => ({ ...old, filters: { ...old.filters, [name]: value } }));
+  const setFiltersOpen = (open: boolean) => updateState((old) => ({ ...old, filtersOpen: open }));
   const dateInvalid = filters.settlement_date_end < filters.settlement_date;
   const appliedSummary = [
     applied.settlement_date === applied.settlement_date_end
@@ -130,8 +156,11 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
               size="sm"
               aria-pressed={channel === item.value}
               onClick={() => {
-                setChannel(item.value);
-                if (item.value === "wholesale") setFiltersOpen(true);
+                updateState((old) => ({
+                  ...old,
+                  channel: item.value,
+                  filtersOpen: item.value === "wholesale" ? true : old.filtersOpen,
+                }));
               }}
             >
               {item.label}
@@ -169,9 +198,11 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
             onSubmit={(event) => {
               event.preventDefault();
               if (!dateInvalid && filters.market_ids.length) {
-                setAppliedLabels((previous) => rememberMarketOptions(previous, options));
-                setApplied({ ...filters });
-                setFiltersOpen(false);
+                updateState((old) => ({
+                  ...old,
+                  applied: { ...old.filters, market_ids: [...old.filters.market_ids] },
+                  filtersOpen: false,
+                }));
               }
             }}
           >
@@ -239,7 +270,15 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
                 </select>
               </div>
             </div>
-            <details className="group">
+            <details
+              className="group"
+              open={state.extraFiltersOpen}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                if (open !== state.extraFiltersOpen)
+                  updateState((old) => ({ ...old, extraFiltersOpen: open }));
+              }}
+            >
               <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-base">
                 세부 조건
                 <CaretDownIcon aria-hidden="true" />
@@ -407,7 +446,13 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
           </AlertDescription>
         </Alert>
       ) : null}
-      {cards?.length ? <PriceCardList cards={cards} /> : null}
+      {cards?.length ? (
+        <PriceCardList
+          cards={cards}
+          displayMode={state.displayMode}
+          onDisplayModeChange={(displayMode) => updateState((old) => ({ ...old, displayMode }))}
+        />
+      ) : null}
       {query.isSuccess && !unavailable && !cards?.length && !failed?.length ? (
         <div className="space-y-4 py-10 text-center text-base text-muted-foreground">
           <p>
@@ -423,8 +468,11 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
               <Button
                 variant="outline"
                 onClick={() => {
-                  setFilters(clearExtraFilters);
-                  setApplied(clearExtraFilters);
+                  updateState((old) => ({
+                    ...old,
+                    filters: clearExtraFilters(old.filters),
+                    applied: clearExtraFilters(old.applied),
+                  }));
                 }}
               >
                 세부 조건 지우기

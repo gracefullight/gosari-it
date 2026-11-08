@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { getDefaultStore } from "jotai";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PriceLookupPage } from "@/components/price-lookup-page";
+import { priceLookupStateAtom } from "@/stores/price-lookup.atoms";
 
 vi.mock("@/components/date-picker-field", () => ({
   DatePickerField: ({
@@ -17,6 +19,7 @@ vi.mock("@/components/date-picker-field", () => ({
   ),
 }));
 let client: QueryClient;
+beforeEach(() => getDefaultStore().set(priceLookupStateAtom, null));
 afterEach(() => {
   cleanup();
   client?.clear();

@@ -15,6 +15,7 @@ from litestar.openapi.config import OpenAPIConfig
 from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from litestar.types import ASGIApp, Message, Receive, Scope, Send
 
+from gosari.agent.coordinator import close_coordinator
 from gosari.api.analysis import AnalysisController, JobsController
 from gosari.api.consent import ActionsController, ConsentsController
 from gosari.api.contacts import ContactsController
@@ -43,6 +44,7 @@ async def lifespan(app: Litestar) -> AsyncIterator[None]:
     except Exception as exc:
         logger.warning("DB unavailable — limited mode", error_type=type(exc).__name__)
     yield
+    close_coordinator()
     close_pool()
 
 

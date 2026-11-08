@@ -100,11 +100,23 @@ async function start() {
       },
     },
   };
+  const sourceBound = process.env.SUBMISSION_API_SOURCE === "1";
+  if (sourceBound) {
+    override.services.app.volumes = [
+      {
+        type: "bind",
+        source: resolve(root, "apps/api/src"),
+        target: "/app/apps/api/src",
+        read_only: true,
+      },
+    ];
+  }
   writeFileSync(overridePath, JSON.stringify(override, null, 2), { mode: 0o600 });
   const ledger = {
     started_at: new Date().toISOString(),
     project,
     image,
+    api_source_bound: sourceBound,
     port,
     source_commit: run("git", ["rev-parse", "HEAD"], { allowFailure: true }).stdout.trim() || null,
     image_id: run("docker", ["image", "inspect", image, "--format", "{{.Id}}"]).stdout.trim(),

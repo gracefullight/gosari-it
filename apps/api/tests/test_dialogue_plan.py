@@ -119,8 +119,9 @@ def test_time_sensitive_plan_has_shorter_ttl(memory):
     conn, _ = memory
     spec = {"operation": "current_observation", "source_ids": ["kma_aws"]}
     assert dialogue_plan.store_plan("제주 지금 날씨", [spec], now=NOW)
-    assert next(iter(conn.rows.values()))["expires"] == NOW + timedelta(seconds=60)
-    assert dialogue_plan.read_plan("제주 지금 날씨", now=NOW + timedelta(seconds=61)) is None
+    assert next(iter(conn.rows.values()))["expires"] == NOW + timedelta(minutes=15)
+    assert dialogue_plan.read_plan("제주 지금 날씨", now=NOW + timedelta(minutes=2))
+    assert dialogue_plan.read_plan("제주 지금 날씨", now=NOW + timedelta(minutes=16)) is None
 
 
 @pytest.mark.parametrize(

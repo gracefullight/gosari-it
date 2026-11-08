@@ -172,7 +172,7 @@ def test_real_agent_protocol_keeps_the_question_when_tomorrow_is_the_reply(monke
     assert second.events[-1].event_type == "done"
 
 
-def test_restored_plan_reuses_answer_before_model_and_keeps_followup_context(monkeypatch):
+def test_cached_dialogue_reuses_answer_before_model_and_keeps_followup_context(monkeypatch):
     coordinator, session = Coordinator(Settings()), Session(Settings())
     _synchronous_chat(coordinator, monkeypatch)
     spec = {"operation": "retail_lookup", "source_ids": ["retail_sample", "tamnao"]}
@@ -187,12 +187,12 @@ def test_restored_plan_reuses_answer_before_model_and_keeps_followup_context(mon
         evidence_ids=["public-evidence"],
     ).model_dump(mode="json")
     cached["assistant_text"] = "탐나오 100g은 17,000원입니다."
-    monkeypatch.setattr("gosari.cache.dialogue_plan.read_plan", lambda *a, **k: [spec])
+    cached["dialogue_tool_results"] = [{"spec": spec, "envelope": dict(cached)}]
     monkeypatch.setattr(
-        "gosari.agent.coordinator.lookup",
+        "gosari.cache.dialogue_response.lookup_response",
         lambda *a, **k: (
             CacheResolution.EXACT_HIT,
-            {"answer": cached, "evidence_ids": ["public-evidence"]},
+            {"specs": [spec], "answer": cached, "evidence_ids": ["public-evidence"]},
         ),
     )
     monkeypatch.setattr(

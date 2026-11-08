@@ -1,4 +1,4 @@
-"""Exact first-turn public plan index; questions and answers are never stored here."""
+"""Legacy plan-index compatibility; chat uses the unified dialogue_response cache."""
 
 import hashlib
 import json
@@ -169,7 +169,14 @@ def store_plan(
         if key is None or plans is None or not db_available():
             return False
         fingerprint, exact, scope = key
-        ttl = 60 if plans[0]["operation"] in TIME_SENSITIVE_OPERATIONS else 1800
+        operation = plans[0]["operation"]
+        ttl = (
+            300
+            if operation == "outing_compare"
+            else 900
+            if operation in TIME_SENSITIVE_OPERATIONS
+            else 1800
+        )
         tomorrow = now.astimezone(KOREA).date() + timedelta(days=1)
         midnight = datetime.combine(tomorrow, datetime.min.time(), tzinfo=KOREA)
         expires = min(

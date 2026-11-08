@@ -4,16 +4,17 @@
 개인 검색은 로컬에서 실행하고 건수만 모델에 전달하며, 변경은 폼과 승인을 거친다.
 """
 
+import copy
 import hashlib
 import json
 import re
 import threading
 import time
-import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import timedelta
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from gosari.agent import build_public_spec, detect_out_of_scope, detect_personal_hint
 from gosari.agent.analysis import AnalysisEngine
@@ -157,6 +158,44 @@ class Coordinator:
         self._executor = ThreadPoolExecutor(
             max_workers=concurrency, thread_name_prefix="gosari-analysis"
         )
+        self._cache_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="gosari-cache-index"
+        )
+        self._cache_index_slots = threading.BoundedSemaphore(
+            max(1, self.settings.analysis_queue_limit)
+        )
+
+    def _schedule_cache_index(self, question: str, history: list[dict[str, Any]]) -> None:
+        """An exact response is already durable; vector indexing must not delay SSE done."""
+        if not self._cache_index_slots.acquire(blocking=False):
+            return
+        snapshot = copy.deepcopy(history)
+
+        def index() -> None:
+            try:
+                from gosari.cache.dialogue_response import enrich_response_embedding
+
+                enrich_response_embedding(question, snapshot, now=utcnow())
+            except Exception as exc:
+                logger.warning(
+                    "dialogue vector indexing unavailable", error_type=type(exc).__name__
+                )
+            finally:
+                self._cache_index_slots.release()
+
+        try:
+            self._cache_executor.submit(index)
+        except RuntimeError:
+            self._cache_index_slots.release()
+
+    def close(self) -> None:
+        """Stop admission to owned workers and cancel queued work on API shutdown."""
+        with self._lock:
+            for job in self._jobs.values():
+                if job.stage not in (JobStage.COMPLETED, JobStage.FAILED, JobStage.CANCELLED):
+                    job.cancelled = True
+        self._cache_executor.shutdown(wait=False, cancel_futures=True)
+        self._executor.shutdown(wait=False, cancel_futures=True)
 
     def prepare(self, session: Session, payload: dict[str, Any]) -> dict[str, Any]:
         """공개/개인 분류와 조건 확인. 원천 호출·개인 변경 전 단계."""
@@ -666,6 +705,8 @@ class Coordinator:
 
         deadline = time.monotonic() + self.settings.job_deadline
         last_result: ResultEnvelope | None = None
+        public_tool_results: list[dict[str, Any]] = []
+        failed_public_scopes: set[str] = set()
 
         def checkpoint() -> None:
             if session.lifecycle != "active":
@@ -726,18 +767,33 @@ class Coordinator:
                 job.personal_form = feature
                 return ResultEnvelope(request_id=job.request_id, result={"feature": feature})
             public = build_public_spec(arguments)
-            with public_source_singleflight(public, checkpoint=checkpoint):
-                cached = get_source_result(public)
-                if cached is not None:
-                    result = ResultEnvelope.model_validate({**cached, "request_id": job.request_id})
-                    last_result = result
-                else:
-                    result = AnalysisEngine(self.settings, checkpoint=checkpoint).run(
-                        public, job.request_id
-                    )
-                    last_result = result
-                    checkpoint()
-                    put_source_result(public, result, ttl_seconds=300)
+            scope_key = json.dumps(
+                canonical_public_spec(public), ensure_ascii=False, sort_keys=True
+            )
+            try:
+                with public_source_singleflight(public, checkpoint=checkpoint):
+                    cached = get_source_result(public)
+                    if cached is not None:
+                        result = ResultEnvelope.model_validate(
+                            {**cached, "request_id": job.request_id}
+                        )
+                        last_result = result
+                    else:
+                        result = AnalysisEngine(self.settings, checkpoint=checkpoint).run(
+                            public, job.request_id
+                        )
+                        result = result.model_copy(update={"requested_scope": public}, deep=True)
+                        last_result = result
+                        checkpoint()
+                        put_source_result(public, result, ttl_seconds=300)
+            except Exception:
+                failed_public_scopes.add(scope_key)
+                raise
+            failed_public_scopes.discard(scope_key)
+            result = result.model_copy(update={"requested_scope": public}, deep=True)
+            public_tool_results.append(
+                {"spec": canonical_public_spec(public), "envelope": result.model_dump(mode="json")}
+            )
             last_result = result
             return result
 
@@ -747,28 +803,34 @@ class Coordinator:
         try:
             from gosari.agent.dialogue import run_dialogue
             from gosari.agent.dialogue_privacy import requires_private_dialogue
-            from gosari.cache.dialogue_plan import read_plan, store_plan
+            from gosari.cache.dialogue_guards import normalize_text
+            from gosari.cache.dialogue_response import (
+                context_hash,
+                lifespan,
+                lookup_response,
+                store_response,
+            )
 
             checkpoint()
             incoming = job.dialogue_messages or []
-            fresh = len(incoming) == 1 and incoming[0].get("role") == "user"
             question = str(incoming[-1].get("content") or "") if incoming else ""
-            cacheable_fresh = fresh and not requires_private_dialogue(question)
+            history = incoming[:-1]
+            history_hash = context_hash(history)
+            cacheable = history_hash is not None and not requires_private_dialogue(question)
+            cache_day = utcnow().astimezone(ZoneInfo("Asia/Seoul")).date()
 
             def resolve() -> tuple[ResultEnvelope | None, str, list[dict[str, Any]]]:
-                plan = read_plan(question, now=utcnow()) if cacheable_fresh else None
                 cached = None
                 resolution = CacheResolution.BYPASS
-                if plan:
-                    resolution, cached = lookup(
-                        plan[0],
-                        json.dumps(plan[0], ensure_ascii=False, sort_keys=True),
-                        now=utcnow(),
-                    )
-                if cached is not None and plan:
-                    from gosari.agent.runtime import compact_result
+                lookup_at = utcnow()
+                if cacheable and lookup_at.astimezone(ZoneInfo("Asia/Seoul")).date() == cache_day:
+                    resolution, cached = lookup_response(question, history, now=lookup_at)
+                checkpoint()
+                if cached is not None:
+                    from gosari.agent.dialogue import _compact_tool, _seed_facts
 
                     payload = cached["answer"]
+                    plans = cached["specs"]
                     envelope = ResultEnvelope.model_validate(
                         {
                             **payload,
@@ -778,38 +840,62 @@ class Coordinator:
                         }
                     )
                     answer = str(payload.get("assistant_text") or "")
-                    self._restore_job_ui(job, plan[0], envelope, payload)
-                    facts: dict[str, dict[str, Any]] = {}
-                    reference = compact_result(envelope, facts)
-                    call_id = new_id("cached_tool")
-                    messages = [
-                        *incoming,
-                        {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": call_id,
-                                    "type": "function",
-                                    "function": {"name": plan[0]["operation"], "arguments": "{}"},
-                                }
-                            ],
-                        },
-                        {
-                            "role": "tool",
-                            "tool_call_id": call_id,
-                            "content": json.dumps(
-                                {**reference, "conditions": plan[0]}, ensure_ascii=False
-                            ),
-                        },
-                        {"role": "assistant", "content": answer},
-                    ]
+                    self._restore_job_ui(job, plans[-1], envelope, payload)
+                    messages = [*incoming]
+                    continuation = copy.deepcopy(payload.get("dialogue_continuation", []))
+                    call_ids = {
+                        call["id"]: new_id("cached_tool")
+                        for message in continuation
+                        for call in message.get("tool_calls", [])
+                    }
+                    for message in continuation:
+                        for call in message.get("tool_calls", []):
+                            call["id"] = call_ids[call["id"]]
+                        if message.get("role") == "tool":
+                            message["tool_call_id"] = call_ids[message["tool_call_id"]]
+                    messages.extend(continuation)
+                    facts = _seed_facts(incoming)
+                    for record in [] if continuation else payload.get("dialogue_tool_results", []):
+                        public_spec = record["spec"]
+                        output = ResultEnvelope.model_validate(record["envelope"])
+                        reference = _compact_tool(
+                            output, public_spec["operation"], public_spec, facts
+                        )
+                        call_id = new_id("cached_tool")
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": call_id,
+                                        "type": "function",
+                                        "function": {
+                                            "name": public_spec["operation"],
+                                            "arguments": "{}",
+                                        },
+                                    }
+                                ],
+                            }
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "content": json.dumps(
+                                    {**reference, "conditions": public_spec}, ensure_ascii=False
+                                ),
+                            }
+                        )
+                    if not continuation:
+                        messages.append({"role": "assistant", "content": answer})
+                    job.emit_event("cache_resolved", {"resolution": resolution.value})
                     job.emit_event(
                         "assistant_completed",
                         {"text": answer, "replacement": True, "cache_hit": True},
                     )
                 else:
-                    envelope, answer, messages, specs = run_dialogue(
+                    envelope, answer, messages, _specs = run_dialogue(
                         self.llm,
                         incoming,
                         execute,
@@ -818,14 +904,27 @@ class Coordinator:
                         max_steps=self.settings.max_plan_steps,
                     )
                     checkpoint()
+                    if envelope is not None:
+                        envelope.cache_resolution = resolution
+                    now = utcnow()
                     if (
-                        cacheable_fresh
+                        cacheable
+                        and now.astimezone(ZoneInfo("Asia/Seoul")).date() == cache_day
                         and not job.private_tools_used
                         and not job.link_tools_used
                         and envelope is not None
-                        and len(specs) == 1
+                        and public_tool_results
+                        and not failed_public_scopes
                     ):
-                        spec = canonical_public_spec(specs[0])
+                        plans = [record["spec"] for record in public_tool_results]
+                        turn_start = max(
+                            (
+                                index
+                                for index, message in enumerate(messages)
+                                if message.get("role") == "user"
+                            ),
+                            default=len(messages),
+                        )
                         payload = {
                             **envelope.model_dump(mode="json"),
                             "assistant_text": answer,
@@ -834,37 +933,39 @@ class Coordinator:
                                 ref: value.model_dump(mode="json")
                                 for ref, value in job.ui_results.items()
                             },
+                            "dialogue_tool_results": public_tool_results,
+                            "dialogue_continuation": copy.deepcopy(messages[turn_start + 1 :]),
                         }
-                        valid_until = utcnow() + timedelta(
-                            minutes=5
-                            if spec["operation"] == "outing_compare"
-                            else 15
-                            if spec["operation"] in ("current_observation", "forecast_compare")
-                            else 30
+                        evidence_ids = list(
+                            dict.fromkeys(
+                                identifier
+                                for record in public_tool_results
+                                for identifier in record["envelope"].get("evidence_ids", [])
+                            )
                         )
-                        if store(
-                            spec,
-                            json.dumps(spec, ensure_ascii=False, sort_keys=True),
+                        if store_response(
+                            question,
+                            history,
+                            plans,
                             payload,
-                            envelope.evidence_ids,
-                            now=utcnow(),
-                            valid_until=valid_until,
+                            evidence_ids,
+                            now=now,
+                            valid_until=lifespan(plans, now),
                         ):
-                            store_plan(question, specs, now=utcnow(), valid_until=valid_until)
+                            self._schedule_cache_index(question, history)
                 return envelope, answer, messages
 
             from gosari.cache.semantic import response_cache_singleflight
-            from gosari.sources.weather import korea_today
 
-            normalized = unicodedata.normalize("NFC", question.strip())
+            normalized = normalize_text(question)
             digest = hashlib.sha256(normalized.encode()).hexdigest()
             flight = (
                 response_cache_singleflight(
                     {"operation": "station_search", "source_ids": ["jeju_578"]},
-                    f"dialogue:{korea_today().isoformat()}:{digest}",
+                    f"dialogue:{cache_day.isoformat()}:{history_hash}:{digest}",
                     checkpoint=checkpoint,
                 )
-                if cacheable_fresh
+                if cacheable
                 else nullcontext()
             )
             with flight:
@@ -1092,3 +1193,11 @@ def get_coordinator() -> Coordinator:
     if _coordinator is None:
         _coordinator = Coordinator()
     return _coordinator
+
+
+def close_coordinator() -> None:
+    global _coordinator
+    current = _coordinator
+    _coordinator = None
+    if current is not None:
+        current.close()
