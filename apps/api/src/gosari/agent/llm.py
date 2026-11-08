@@ -88,6 +88,7 @@ class LlmClient:
             "output_tokens": total("output_tokens"),
             "reasoning_tokens": total("reasoning_tokens"),
             "provider_cached_input_tokens": total("provider_cached_input_tokens"),
+            "provider_cache_write_tokens": total("provider_cache_write_tokens"),
             "total_tokens": total("total_tokens"),
             "token_budget": self.settings.model_job_token_budget,
             "remaining_token_budget": getattr(
@@ -164,6 +165,7 @@ class LlmClient:
             "total_tokens": None,
             "reasoning_tokens": None,
             "provider_cached_input_tokens": None,
+            "provider_cache_write_tokens": None,
             "elapsed_ms": 0,
         }
         calls: dict[int, dict[str, Any]] = {}
@@ -200,6 +202,11 @@ class LlmClient:
                                 "prompt_tokens_details",
                                 "cached_tokens",
                                 "provider_cached_input_tokens",
+                            ),
+                            (
+                                "prompt_tokens_details",
+                                "cache_write_tokens",
+                                "provider_cache_write_tokens",
                             ),
                             ("completion_tokens_details", "reasoning_tokens", "reasoning_tokens"),
                         ):
@@ -288,6 +295,7 @@ class LlmClient:
             "output_tokens": None,
             "reasoning_tokens": None,
             "provider_cached_input_tokens": None,
+            "provider_cache_write_tokens": None,
             "total_tokens": None,
             "elapsed_ms": 0,
         }
@@ -322,6 +330,11 @@ class LlmClient:
                 )
                 record["provider_cached_input_tokens"] = (
                     count(input_details.get("cached_tokens"))
+                    if isinstance(input_details, dict)
+                    else None
+                )
+                record["provider_cache_write_tokens"] = (
+                    count(input_details.get("cache_write_tokens"))
                     if isinstance(input_details, dict)
                     else None
                 )

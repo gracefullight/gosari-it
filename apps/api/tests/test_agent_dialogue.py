@@ -1283,3 +1283,18 @@ def test_persistent_lower_ranked_recommendation_falls_back_to_the_ranked_winner(
     completed = next(p for n, p in events if n == "assistant_completed")
     assert completed["replacement"] is True
     assert "서귀포" not in completed["text"]
+
+
+def test_static_system_prompt_leads_and_clock_trails_the_history_for_prompt_caching():
+    model = Model([respond("어느 날짜로 볼까요?", operation="outing_compare")])
+    history = [
+        {"role": "user", "content": "나들이 준비를 도와줘"},
+        {"role": "assistant", "content": "어느 지역으로 볼까요?"},
+        {"role": "user", "content": "애월"},
+    ]
+    run(model, history)
+    request = model.requests[0]
+    assert request[0]["role"] == "system" and "공개 대표 지역" in request[0]["content"]
+    assert [item["content"] for item in request[1:4]] == [m["content"] for m in history]
+    assert request[-1]["role"] == "system" and "현재 시계 facts" in request[-1]["content"]
+    assert sum(item["role"] == "system" for item in request) == 2

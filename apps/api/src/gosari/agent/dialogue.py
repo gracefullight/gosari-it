@@ -1011,6 +1011,9 @@ def run_dialogue(
                 "as_of": "",
                 "anchors": list[str](),
             }
+        # Static tools + system prompt first, the per-second clock last: the provider
+        # prompt cache matches prefixes at message boundaries, so a changing clock
+        # before the history would defeat caching on every call.
         request = [
             {
                 "role": "system",
@@ -1021,13 +1024,13 @@ def run_dialogue(
                     ensure_ascii=False,
                 ),
             },
+            *history,
             {
                 "role": "system",
                 "content": runtime_system_prompt(
                     "현재 시계 facts: " + json.dumps(clock, ensure_ascii=False), current
                 ),
             },
-            *history,
         ]
         try:
             message = client.stream_turn(
