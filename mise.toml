@@ -76,6 +76,35 @@ run = "node scripts/compose.mjs up"
 description = "Show local services, schema and supported capabilities"
 run = "node scripts/compose.mjs status"
 
+[tasks."submission:build"]
+description = "Build the submission image without replacing the local service image"
+run = "docker build --file deploy/Dockerfile --tag gosariit-app:submission ."
+
+[tasks."submission:build:amd64"]
+description = "Build the Intel/AMD Linux submission image for the center PC"
+run = "docker build --platform linux/amd64 --file deploy/Dockerfile --tag gosariit-app:submission-amd64 ."
+
+[tasks."submission:verify"]
+description = "Start an isolated submission image with a fresh database (opt-in integration)"
+run = "node scripts/submission-runtime.mjs start"
+
+[tasks."submission:stop"]
+description = "Stop only the owned submission verification containers; keep data"
+run = "node scripts/submission-runtime.mjs stop"
+
+[tasks."submission:package"]
+description = "Create and verify the final source ZIP with the reviewed proposal"
+run = "node scripts/package-submission.mjs"
+
+[tasks."submission:check"]
+description = "Check only submission tooling and its focused regression tests"
+run = [
+  "node --check scripts/submission-runtime.mjs",
+  "node --check scripts/compose.mjs",
+  "node --test scripts/tests/build-identity.test.mjs scripts/tests/package-submission.test.mjs scripts/compose-native.test.mjs scripts/runtime-readiness.test.mjs",
+  "hadolint deploy/Dockerfile",
+]
+
 [tasks.logs]
 description = "Show recent redacted logs with bounded history"
 run = "node scripts/compose.mjs logs"

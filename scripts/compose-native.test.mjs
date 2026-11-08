@@ -21,7 +21,7 @@ test("native DB commands reuse one project and never build, pull, initialize, or
   const root = mkdtempSync(join(tmpdir(), "gosari-native-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const dir of ["scripts", "apps/api", "bin"]) mkdirSync(join(root, dir), { recursive: true });
-  for (const name of ["compose.mjs", "runtime-readiness.mjs"])
+  for (const name of ["compose.mjs", "runtime-readiness.mjs", "build-identity.mjs"])
     copyFileSync(join(source, name), join(root, "scripts", name));
   writeFileSync(
     join(root, "apps/api/.env"),

@@ -16,6 +16,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import { readBuildIdentity } from "./build-identity.mjs";
 import { readCapabilities, waitForReadiness } from "./runtime-readiness.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -62,7 +63,9 @@ function composeEnv() {
   return {
     ...api,
     GOSARI_APP_IMAGE: api.GOSARI_APP_IMAGE || "gosariit-app:local",
-    GOSARI_DB_IMAGE: api.GOSARI_DB_IMAGE || "pgvector/pgvector:pg18",
+    GOSARI_DB_IMAGE:
+      api.GOSARI_DB_IMAGE ||
+      "pgvector/pgvector:pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47",
     APP_PORT: api.APP_PORT || "8765",
     APP_PROFILE: api.APP_PROFILE || "center",
     KMA_SERVICE_KEY: api.KMA_SERVICE_KEY || api.DATA_GO_KR_SERVICE_KEY || "",
@@ -190,6 +193,7 @@ function init() {
 }
 
 function build() {
+  const identity = readBuildIdentity(ROOT);
   log("up: 앱 이미지 빌드 (frozen 의존성)");
   run("docker", [...composeArgs(), "-f", "compose.build.yaml", "build", "app"]);
   const imageId = run("docker", ["image", "inspect", "gosariit-app:local", "--format", "{{.Id}}"], {
@@ -198,9 +202,7 @@ function build() {
   const manifest = {
     built_at: new Date().toISOString(),
     image_id: (imageId.stdout || "").trim(),
-    source_commit: run("git", ["rev-parse", "HEAD"], { allowFailure: true }).stdout?.trim(),
-    uv_lock_hash: run("git", ["hash-object", "uv.lock"], { allowFailure: true }).stdout?.trim(),
-    bun_lock_hash: run("git", ["hash-object", "bun.lock"], { allowFailure: true }).stdout?.trim(),
+    ...identity,
   };
   mkdirSync(LOCAL, { recursive: true });
   writeFileSync(join(LOCAL, "build-manifest.json"), JSON.stringify(manifest, null, 2));

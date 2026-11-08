@@ -20,7 +20,7 @@ x-app-runtime: &app-runtime
 
 services:
   db:
-    image: ${GOSARI_DB_IMAGE:-pgvector/pgvector:pg18}
+    image: ${GOSARI_DB_IMAGE:-pgvector/pgvector:pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47}
     environment:
       POSTGRES_DB: gosari_public
       POSTGRES_USER: postgres
@@ -83,6 +83,8 @@ services:
       DB_ADMIN_DSN: ""
       KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
       AT_SERVICE_KEY: ${AT_SERVICE_KEY:-${DATA_GO_KR_SERVICE_KEY:-}}
+      EMBEDDING_MODEL_PATH: /app/models/multilingual-e5-small
+      EMBEDDING_REVISION: 614241f622f53c4eeff9890bdc4f31cfecc418b3
     networks: [db_internal, app_egress]
     healthcheck:
       test: ["CMD", "python", "-m", "gosari.ops.healthcheck"]

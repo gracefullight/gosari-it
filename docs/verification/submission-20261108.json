@@ -1,0 +1,258 @@
+{
+  "checked_on": "2026-11-08",
+  "runtime_source_commit": "c49843b",
+  "image_id": "sha256:fc36dc05e585b52ba78bcc2153b6c07cd112d3d47bc5928c2119f785c3ef7abc",
+  "architecture": "linux/amd64",
+  "readiness": {
+    "status": "ready",
+    "database": "ok",
+    "profile": "center",
+    "external_requests": true,
+    "llm": "configured"
+  },
+  "fresh_database_bootstrap": true,
+  "personal": {
+    "architecture": "linux/amd64",
+    "fresh_personal_collections_empty": true,
+    "committed_counts": {
+      "notebook": 1,
+      "regions": 1,
+      "contacts": 1,
+      "share": 1
+    },
+    "duplicate_commit_idempotent": true,
+    "separate_session_isolated": true,
+    "inclusive_date_filter": true,
+    "personal_search_mode": "hybrid",
+    "personal_search_kinds": [
+      "notebook",
+      "region"
+    ]
+  },
+  "restart_persistence": {
+    "restart_restored": {
+      "notebook": 1,
+      "regions": 1,
+      "contacts": 1,
+      "share": 1
+    },
+    "readiness": {
+      "status": "ready",
+      "database": "ok",
+      "profile": "center",
+      "external_requests": true,
+      "llm": "configured"
+    },
+    "same_session_after_process_restart": true
+  },
+  "jeju_578": {
+    "http_status": 200,
+    "source_mode": "fetched",
+    "data_status": "complete",
+    "station_count": 42,
+    "evidence_count": 1,
+    "fetched_at": "2026-11-08T02:10:42.442890Z",
+    "verified_on": null,
+    "warnings": [],
+    "errors": []
+  },
+  "jeju_579": {
+    "data_status": "complete",
+    "source_mode": "fetched",
+    "evidence_count": 1,
+    "warnings": [],
+    "errors": [],
+    "result": {
+      "years": null,
+      "daily_rainfall": {
+        "common_month_days": [],
+        "common_day_count": 0,
+        "per_year": {
+          "2023": {
+            "positive_days": 0,
+            "valid_days": 0,
+            "ratio": null,
+            "full_period": {
+              "positive_days": 0,
+              "valid_days": 0
+            },
+            "value_states": {}
+          },
+          "2024": {
+            "positive_days": 0,
+            "valid_days": 0,
+            "ratio": null,
+            "full_period": {
+              "positive_days": 0,
+              "valid_days": 2
+            },
+            "value_states": {
+              "valid_zero": 2
+            }
+          }
+        }
+      },
+      "average_temperature": {
+        "common_month_days": [],
+        "common_day_count": 0,
+        "per_year": {
+          "2023": {
+            "average": null,
+            "valid_days": 0,
+            "full_period": {
+              "average": null,
+              "valid_days": 0
+            },
+            "value_states": {}
+          },
+          "2024": {
+            "average": null,
+            "valid_days": 0,
+            "full_period": {
+              "average": "1.0000",
+              "valid_days": 2
+            },
+            "value_states": {
+              "valid": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "stage": "completed",
+    "assistant_text": "2026-11-09 오전 9시 기준으로는 **서귀포를 추천**해요. 애월은 강수확률이 더 낮지만 바람이 강하고, 우선순위(비 적음·온화함·바람 약함)를 종합한 비교 순위에서는 서귀포가 2위, 애월이 1위로 나왔습니다. 다만 애월은 서귀포보다 강수확률이 6%p 낮고 기온은 0.5℃ 낮은 대신 풍속이 18.3km/h 더 높습니다.\n\n- **애월:** 강수확률 18%, 기온 14.9℃, 풍속 34.1km/h (비교 1위)\n- **서귀포:** 강수확률 24%, 기온 15.4℃, 풍속 15.8km/h (비교 2위) — 바람이 가장 약해 나들이하기 무난\n- **성산:** 강수확률 86%, 기온 17.1℃, 풍속 30.3km/h (비교 3위)\n\n비를 가장 피하고 싶다면 애월을 대안으로 볼 수 있지만, 바람까지 고려하면 서귀포가 균형이 좋아요.",
+    "model_usage": {
+      "calls": 2,
+      "usage_status": "reported",
+      "input_tokens": 9252,
+      "output_tokens": 672,
+      "reasoning_tokens": 0,
+      "provider_cached_input_tokens": 0,
+      "total_tokens": 9924,
+      "token_budget": 64000,
+      "remaining_token_budget": 54076,
+      "elapsed_ms": 9844,
+      "cost_status": "not_calculated",
+      "cost_usd": null,
+      "records": [
+        {
+          "model": "gpt-6-luna",
+          "request_sent": true,
+          "status": "completed",
+          "usage_status": "reported",
+          "input_tokens_estimate": 7874,
+          "input_tokens_heuristic_estimate": 7874,
+          "input_tokens": 3740,
+          "output_tokens": 102,
+          "total_tokens": 3842,
+          "reasoning_tokens": 0,
+          "provider_cached_input_tokens": 0,
+          "elapsed_ms": 4313
+        },
+        {
+          "model": "gpt-6-luna",
+          "request_sent": true,
+          "status": "completed",
+          "usage_status": "reported",
+          "input_tokens_estimate": 5881,
+          "input_tokens_heuristic_estimate": 9904,
+          "input_tokens": 5512,
+          "output_tokens": 570,
+          "total_tokens": 6082,
+          "reasoning_tokens": 0,
+          "provider_cached_input_tokens": 0,
+          "elapsed_ms": 5531
+        }
+      ]
+    },
+    "sse_content_type": "text/event-stream; charset=utf-8",
+    "sse_event_types": [
+      "stage",
+      "tool_started",
+      "tool_completed",
+      "assistant_delta",
+      "ui_spec",
+      "assistant_completed",
+      "done"
+    ],
+    "sse_event_count": 291,
+    "first_event_seconds": 0.002,
+    "ui_spec_present": true,
+    "tool_result_count": 1,
+    "rank_one_region": "애월",
+    "first_region_mentioned": "서귀포",
+    "recommendation_matches_rank_one": false,
+    "candidate_summary": [
+      {
+        "region": "애월",
+        "rank": 1,
+        "temperature_c": 14.9,
+        "precipitation_probability": 18.0,
+        "wind_speed_kmh": 34.1
+      },
+      {
+        "region": "서귀포",
+        "rank": 2,
+        "temperature_c": 15.4,
+        "precipitation_probability": 24.0,
+        "wind_speed_kmh": 15.8
+      },
+      {
+        "region": "성산",
+        "rank": 3,
+        "temperature_c": 17.1,
+        "precipitation_probability": 86.0,
+        "wind_speed_kmh": 30.3
+      }
+    ]
+  },
+  "cumulative_provider_calls": 8,
+  "cumulative_provider_tokens": 39420,
+  "focused_tooling_tests": 22,
+  "tool_context_contract_tests": 1,
+  "hadolint": "passed",
+  "unverified": [
+    "physical_center_pc",
+    "physical_mobile_device",
+    "real_microphone_transcription",
+    "ga4_console_receipt"
+  ],
+  "known_issue": "The natural language recommendation still differs from the tool rank-one candidate; no output replacement was added.",
+  "sha256": {
+    "deploy/Dockerfile": "aa5b8df77563c048fb5268900e8ee8aa064cdfc8270468ed03bcce88f11a8b2c",
+    "compose.yaml": "24886bf394b73995174a7f52a2ae7b1165f10143b4825433bd6f1a845ae9dcbb",
+    "bun.lock": "6f00d376134ffdbbc890954300dffee4371a1654c7fef8f84684dd2664973183",
+    "uv.lock": "eafeb1949ec5406f5c734075bf2df0192e2273387b6c7d0aa8ab4d5c620eed38",
+    "apps/api/src/gosari/agent/dialogue.py": "87e63b42001f4751a033d6b9a92fd5cbb4e62b0a1b2bd90f306921332cfa105a",
+    "apps/api/src/gosari/cache/semantic.py": "cc80ec9280363337c5e67f4ecb361ba8a8412f1ae571e777f7e2133d3e0f6b2c"
+  },
+  "browser_ui": {
+    "chat_completed": true,
+    "detail_modal_opened": true,
+    "candidate_carousel_present": true,
+    "calls": 2,
+    "total_tokens": 9991,
+    "cache_resolution": "bypass"
+  },
+  "known_issues": [
+    "Natural-language recommendation differs from rank-one candidate.",
+    "Identical browser chat used the model again (cache bypass); no zero-call cache hit was confirmed in this run."
+  ],
+  "from_source_zip": {
+    "build_succeeded": true,
+    "empty_database_bootstrap": true,
+    "app_env_created_from_examples": true,
+    "readiness": {
+      "status": "ready",
+      "database": "ok",
+      "profile": "center",
+      "external_requests": false,
+      "llm": "not_configured"
+    },
+    "image_id": "sha256:94fdcd99e006bbab81a475a9be962c43738d08a9d859e480e5c34cb8ab6f30db",
+    "runtime_content_manifest_sha256": "fd0c2e0c215208f9c4549086123c8cc0f800fce933d83e160ca64459bd7999b5",
+    "runtime_content_matches_validated_image": true
+  }
+}
