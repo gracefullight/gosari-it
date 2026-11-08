@@ -29,6 +29,7 @@ API는 `apps/api/.env`, 웹은 `apps/web/.env`를 사용한다. 예제는 각 �
 | `KMA_HUB_KEY`                                   | 선택적 별도 API허브 AWS 경로                               |
 | `AT_SERVICE_KEY`                                | 공공데이터포털 aT                                          |
 | `VWORLD_API_KEY`·`VWORLD_DOMAIN`                | 브이월드 전용 키·등록 도메인                               |
+| `ALLOW_SHARE_FILE`                              | 나눔 공유 파일 내려받기, 예제 기본 `true`                  |
 | `RESPONSE_CACHE_ENABLED`                        | DB 공용 캐시 사용                                          |
 | `DOMAIN_THRESHOLD_CONFIG`                       | 의미 캐시 임계값, 기본 0.95·실제 유사도는 이를 초과해야 함 |
 | `EMBEDDING_MODEL_PATH`·`EMBEDDING_REVISION`     | 로컬 임베딩 모델·리비전                                    |
@@ -134,7 +135,7 @@ mise run infra:down
 
 현재 작업·대화 메모리를 사용하는 API worker·replica는 각각 1개로 운영한다. 세션 유효기간은 `SESSION_IDLE_TTL`·`SESSION_ABSOLUTE_TTL` 설정을 사용한다. 설정의 기본값은 365일이다.
 
-화면의 개인 기록 초기화는 현재 세션의 DB 자료를 삭제한다. 운영 백업과 외부로 내려받은 파일의 보관은 별도다. 실제 `.env`, 키, 개인 DB는 Git·이미지 빌드 컨텍스트·제출 소스에서 제외한다.
+화면의 개인 기록 초기화는 현재 세션의 DB 자료를 삭제한다. 브라우저가 세션 ID를 보관하므로 공용 센터 PC에서는 이용을 마칠 때 초기화를 안내한다. 초기화하지 않으면 다음 이용자가 같은 세션의 기록을 본다. 보관 기간을 줄이려면 두 TTL 값을 초 단위로 낮춘다. 운영 백업과 외부로 내려받은 파일의 보관은 별도다. 실제 `.env`, 키, 개인 DB는 Git·이미지 빌드 컨텍스트·제출 소스에서 제외한다.
 
 ## 7. 환경별 검증 범위
 
