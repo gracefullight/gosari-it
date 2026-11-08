@@ -67,7 +67,6 @@ const EXACT = new Set([
   "scripts/runtime-readiness.test.mjs",
   "scripts/package-submission.mjs",
   "scripts/tests/package-submission.test.mjs",
-  "docs/adapter-manual.md",
   "docs/agent-runtime.md",
   "docs/architecture.md",
   "docs/data-usage.md",
