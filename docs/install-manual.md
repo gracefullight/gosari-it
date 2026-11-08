@@ -147,7 +147,7 @@ Windows 센터 PC·WSL2·Docker Desktop과 실제 휴대폰의 전체 설치·�
 
 ## 8. 제출 실행본과 소스 ZIP
 
-2026-11-08 기획서 PDF·기존 ZIP과 `submission-20261108.json`은 당시 소스·이미지의 제출 스냅샷이다. 이후 캐시 변경의 실행 증거로 바꾸어 쓰지 않는다. 새 캐시 검증과 현재 소스의 확인 범위는 [구현 결과](submission-results.md)를 따른다.
+제출 묶음은 검토한 커밋, 기획서 PDF, 빈 DB 기동 영수증으로 만든다. 영수증의 소스 커밋·이미지 ID가 제출 커밋과 같은지 확인한다. 확인 범위는 [구현 결과](submission-results.md)에 있다.
 
 센터용 Linux AMD64 이미지는 별도 태그로 빌드한다.
 
@@ -164,11 +164,21 @@ SUBMISSION_IMAGE=gosariit-app:submission-amd64 SUBMISSION_PORT=8766 SUBMISSION_R
 SUBMISSION_RUNTIME_DIR=.local/submission-runtime-check mise run submission:stop
 ```
 
-검토한 계획서 PDF와 안전한 검증 JSON을 지정해 소스 ZIP을 만든다. 다음 PDF 경로는 예시이며 실제 검토 파일로 바꾼다.
+기획서 PDF는 원고 `docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.md`에서 만든다. 제목·표 글꼴 NanumGothic TTF는 `.local/fonts/`에 둔다.
 
 ```sh
-mise run submission:package -- --proposal path/to/reviewed.pdf --receipt docs/verification/submission-20261108.json
+uv run --no-project --with reportlab --with pypdf python scripts/render-proposal-report.py --output docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf
 ```
+
+포함 파일 목록은 `--dry-run`으로 먼저 확인하고, 기획서 PDF와 검증 JSON을 지정해 소스 ZIP을 만든 뒤 추출 검증을 돌린다.
+
+```sh
+node scripts/package-submission.mjs --dry-run
+mise run submission:package -- --proposal docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf --receipt docs/verification/submission-20261108.json
+node scripts/package-submission.mjs --verify .local/submission-20261108/gosari-it-<commit>.zip
+```
+
+결과는 `.local/submission-20261108/` 아래에 ZIP, 파일별 SHA256 매니페스트, ZIP SHA256, 추출 검증 결과로 남는다. ZIP 안에는 `submission/proposal.pdf`와 `submission/receipts/`가 들어간다. 커밋 이후 바뀐 파일은 `dirty_source_paths`로 표시되므로 제출 전에 비어 있는지 본다.
 
 포장 도구는 허용한 소스·문서·표본·잠금 파일만 포함하고 실제 `.env`·개인 DB·실행 비밀·에이전트 작업 폴더를 제외한다. ZIP의 파일별 해시·매니페스트·SHA256과 추출 검증 결과를 생성한다. 선택적 시연 영상은 `--video path/to/demo.mp4`로 지정한다. 포장 명령 자체는 앱 실행이나 모델 호출을 하지 않는다.
 
