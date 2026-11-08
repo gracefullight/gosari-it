@@ -4,7 +4,7 @@
 
 ## 제작 전
 
-- 제출할 커밋과 최신 기획서 PDF를 확정한다.
+- 제출할 커밋과 최신 기획서 PDF를 확정한다. 기획서 원고는 `docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.md`이며 `uv run --no-project --with reportlab --with pypdf python scripts/render-proposal-report.py --output <경로>`로 v0.20과 같은 보고서 서식(표지·목차·번호 체계·명조 본문)의 A4 14쪽 PDF를 만든다. 제목·표 글꼴 NanumGothic TTF는 `.local/fonts/`에 둔다.
 - 최신 소스로 앱 이미지를 만들고, 기존 개인 DB와 분리한 빈 DB에서 기동·마이그레이션·화면·readiness를 확인한다.
 - 이미지 ID·검증 소스 커밋·잠금 파일 해시를 실행 영수증에 남긴다. 구 이미지에 새 소스를 연결한 시험과 새 이미지 시험을 구분한다.
 - Windows·센터 기동, 공개 실행 URL, 시연 영상은 실제 확보한 결과만 완료로 표시한다.
