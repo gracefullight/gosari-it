@@ -472,6 +472,48 @@ def _outing_ranking(output: ResultEnvelope) -> list[dict[str, Any]]:
     return ranked
 
 
+_RECOMMEND_WORDS = (
+    "추천",
+    "권해",
+    "권합니다",
+    "가장 좋",
+    "제일 좋",
+    "가장 적합",
+    "가장 무난",
+    "균형이 좋",
+    "1순위",
+    "고르세요",
+    "선택하세요",
+    "가세요",
+)
+_ALTERNATIVE_WORDS = ("대안", "않", "피하", "어렵", "바꾸", "바꾸면", "라면", "다면", "비추")
+
+
+def outing_recommendation_conflict(
+    text: str, records: list[tuple[str, dict[str, Any], ResultEnvelope]]
+) -> str | None:
+    """Return the rank=1 station when a recommending sentence names only a lower-ranked one."""
+    for name, _, output in reversed(records):
+        if name != "outing_compare":
+            continue
+        ranked = _outing_ranking(output)
+        if not ranked:
+            return None
+        winner = str(ranked[0].get("station_name") or "")
+        others = {str(row.get("station_name") or "") for row in ranked[1:]} - {winner, ""}
+        if not winner or not others:
+            return None
+        for sentence in re.split(r"(?<=[.!?。])\s+|\n+", text):
+            if not any(word in sentence for word in _RECOMMEND_WORDS):
+                continue
+            if any(word in sentence for word in _ALTERNATIVE_WORDS) or winner in sentence:
+                continue
+            if any(other in sentence for other in others):
+                return winner
+        return None
+    return None
+
+
 def _compact_tool(
     output: ResultEnvelope, name: str, spec: dict[str, Any], facts: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
@@ -622,6 +664,7 @@ def _compact_tool(
         ]
         compact["preferred_elements"] = list(spec.get("preferred_elements", []))
         compact["ranked_candidate_ids"] = [row.get("candidate_id") for row in ranked]
+        compact["recommended_candidate_id"] = ranked[0].get("candidate_id") if ranked else None
         for row in ranked:
             station = str(row.get("station_name") or "")
             add(
@@ -920,6 +963,7 @@ def run_dialogue(
     memo: dict[str, tuple[ResultEnvelope | None, dict[str, Any]]] = {}
     specifications: list[dict[str, Any]] = []
     private_results: list[dict[str, Any]] = []
+    rank_corrections = 0
     definitions = dialogue_tools()
 
     def complete(
@@ -1022,8 +1066,24 @@ def run_dialogue(
                         }
                     else:
                         text = str(args.get("text") or "")
-                        response = text, args.get("ui"), False
-                        payload = {"status": "responded", "accepted_text": text}
+                        winner = outing_recommendation_conflict(text, records)
+                        if winner and rank_corrections < 2:
+                            rank_corrections += 1
+                            payload = {
+                                "error": "RANK_MISMATCH",
+                                "message": (
+                                    f"actual_ranking의 rank=1 후보는 {winner}입니다. "
+                                    f"{winner}를 먼저 추천하고 다른 후보의 장점은 우선순위를 "
+                                    "바꿨을 때의 대안으로만 설명한 뒤 다시 답해주세요."
+                                ),
+                            }
+                        elif winner:
+                            text = _context_fallback(records, facts)
+                            response = text, args.get("ui"), True
+                            payload = {"status": "responded", "accepted_text": text}
+                        else:
+                            response = text, args.get("ui"), False
+                            payload = {"status": "responded", "accepted_text": text}
                 else:
                     personal = name in PRIVATE_TOOLS
                     linked = name in LINK_TOOLS

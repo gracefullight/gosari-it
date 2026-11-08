@@ -1175,3 +1175,111 @@ def test_model_selects_land_ownership_with_public_id_and_receives_only_safe_owne
     payload = next(json.loads(m["content"]) for m in model.requests[1] if m["role"] == "tool")
     assert payload["land_ownership"] == safe
     assert any(name == "tool_completed" for name, _ in events)
+
+
+def _outing_result(winner="애월", runner="서귀포", third="성산"):
+    rows = [
+        (winner, "aewol", 1, 18.0, 14.9, 34.1),
+        (runner, "seogwipo", 2, 24.0, 15.4, 15.8),
+        (third, "seongsan", 3, 86.0, 17.1, 30.3),
+    ]
+    return ResultEnvelope(
+        request_id="r",
+        result={
+            "candidates": [
+                {
+                    "candidate_id": f"cand-{rank}",
+                    "location_id": location,
+                    "station_name": name,
+                    "target_date": "2026-11-09",
+                    "target_time_window": "09:00",
+                    "rank": rank,
+                    "weather": {
+                        "temperature_c": temperature,
+                        "precipitation_probability": rain,
+                        "wind_speed_kmh": wind,
+                    },
+                }
+                for name, location, rank, rain, temperature, wind in rows
+            ],
+            "ranked_candidate_ids": ["cand-1", "cand-2", "cand-3"],
+            "preferred_elements": ["low_rain", "mild_temperature", "low_wind"],
+        },
+    )
+
+
+_OUTING_ARGS = {
+    "candidates": [
+        {"location_id": "aewol", "date": "2026-11-09", "time_slot": "09:00"},
+        {"location_id": "seogwipo", "date": "2026-11-09", "time_slot": "09:00"},
+        {"location_id": "seongsan", "date": "2026-11-09", "time_slot": "09:00"},
+    ]
+}
+
+
+def test_recommendation_conflict_detects_lower_ranked_subject_but_not_alternatives():
+    from gosari.agent.dialogue import outing_recommendation_conflict
+
+    records = [("outing_compare", {}, _outing_result())]
+    mismatch = (
+        "2026-11-09 오전 9시 기준으로는 **서귀포를 추천**해요. 비교 순위에서는 애월이 1위입니다.\n"
+        "- **애월:** 강수확률 18% (비교 1위)\n- **서귀포:** 강수확률 24% (비교 2위)"
+    )
+    assert outing_recommendation_conflict(mismatch, records) == "애월"
+    consistent = (
+        "비 적음 우선으로 비교한 1위 애월을 추천해요. 서귀포는 바람이 가장 약해 "
+        "우선순위를 바꾸면 대안이 됩니다. 성산은 강수확률 86%라 추천하지 않아요."
+    )
+    assert outing_recommendation_conflict(consistent, records) is None
+    assert outing_recommendation_conflict("어느 시간대로 볼까요?", records) is None
+    assert outing_recommendation_conflict(mismatch, [("retail_lookup", {}, result())]) is None
+    unranked = ResultEnvelope(request_id="r", result={"candidates": [{"station_name": "서귀포"}]})
+    assert outing_recommendation_conflict(mismatch, [("outing_compare", {}, unranked)]) is None
+
+
+def test_lower_ranked_recommendation_is_sent_back_to_the_model_once_and_then_accepted():
+    observed = _outing_result()
+    model = Model(
+        [
+            call("outing_compare", _OUTING_ARGS),
+            respond("바람이 약한 서귀포를 추천해요. 애월은 비교 1위지만 바람이 강합니다."),
+            respond("비교 1위 애월을 추천해요. 바람을 더 중시하면 서귀포가 대안이에요."),
+        ]
+    )
+    (_, text, _, _), events, _ = run(model, execute=lambda spec: observed)
+    assert text.startswith("비교 1위 애월을 추천해요")
+    assert len(model.requests) == 3
+    correction = json.loads(
+        next(
+            item["content"]
+            for item in model.requests[2]
+            if item["role"] == "tool" and "RANK_MISMATCH" in item["content"]
+        )
+    )
+    assert correction["error"] == "RANK_MISMATCH" and "애월" in correction["message"]
+    completed = next(p for n, p in events if n == "assistant_completed")
+    assert completed["text"] == text and completed["replacement"] is False
+    tool_payload = json.loads(
+        next(item["content"] for item in model.requests[1] if item["role"] == "tool")
+    )
+    assert tool_payload["recommended_candidate_id"] == "cand-1"
+
+
+def test_persistent_lower_ranked_recommendation_falls_back_to_the_ranked_winner():
+    observed = _outing_result()
+    wrong = "바람이 약한 서귀포를 추천해요."
+    model = Model(
+        [
+            call("outing_compare", _OUTING_ARGS),
+            respond(wrong),
+            respond(wrong),
+            respond(wrong),
+        ]
+    )
+    (_, text, history, _), events, _ = run(model, execute=lambda spec: observed)
+    assert text == "날씨 조건으로 비교한 후보의 1위는 애월입니다."
+    assert len(model.requests) == 4
+    assert history[-1] == {"role": "assistant", "content": text}
+    completed = next(p for n, p in events if n == "assistant_completed")
+    assert completed["replacement"] is True
+    assert "서귀포" not in completed["text"]
