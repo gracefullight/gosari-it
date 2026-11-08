@@ -215,7 +215,7 @@ OpenStreetMap 기반 지도에서 기존 이용 지역과 새 관심 지역을 �
 
 ### 1. 구현 범위
 
-나들이·지역 탐색·내 수첩·나눔·가격 조사의 최소 기능, 대화·확인 폼·근거 카드, 자료 어댑터, 세션별 기록 처리, 재현 가능한 검증 입력과 설치 매뉴얼을 구현한다. 2026-11-08 기준 다섯 메뉴와 채팅, 승인 기반 개인 기록, 응답 캐시, 기상청 단기예보 우선 비교, 공유 파일까지 구현했으며 추천 문장과 도구 순위의 일치 오류는 수정 대상이다.
+나들이·지역 탐색·내 수첩·나눔·가격 조사의 최소 기능, 대화·확인 폼·근거 카드, 자료 어댑터, 세션별 기록 처리, 재현 가능한 검증 입력과 설치 매뉴얼을 구현한다. 2026-11-08 기준 다섯 메뉴와 채팅, 승인 기반 개인 기록, 응답 캐시, 기상청 단기예보 우선 비교, 공유 파일까지 구현했다. 추천 문장이 도구 1위와 다르면 서버가 모델에 재답변을 요구하고(최대 2회) 그래도 다르면 순위 기반 문장으로 대체하도록 수정했으며, 2026-11-08 실호출 2건에서 추천과 1위가 일치했다.
 
 ### 2. 기술 환경
 
@@ -252,6 +252,8 @@ OpenStreetMap 기반 지도에서 기존 이용 지역과 새 관심 지역을 �
 
 행동당 HTTP 1.2회·DB 읽기 0.31회·쓰기 0.25회·LLM 0.30회 가정 → **HTTP 26.5 RPS, PostgreSQL 기존 처리 12.36 TPS(읽기 6.84·쓰기 5.52), LLM 6.6회/초**. 피크 분에 응답 캐시가 적중하지 않는 경우로 산정했다. 응답 벡터 조회·저장 부하는 별도로 측정한다.
 
+**실측(2026-11-08, 개발 PC)**: Apple M1 Pro·8코어·16GB의 Docker 컨테이너(앱 1프로세스·PostgreSQL 18)에 같은 호스트에서 20초씩 부하를 보냈다. 준비 상태 확인 30동시 548 RPS(p50 28.5ms·p95 177ms), 공개 캐시 관측소 조회 30동시 538 RPS(p50 34ms·p95 167ms), 60동시 591 RPS(p50 63ms·p95 294ms·p99 463ms), 오류 0건. 설계 피크 26.5 RPS와 2배 53 RPS를 넘지만 LLM·외부 원천 호출이 없는 경로이며 센터 최소사양 PC 실측은 별도다. 로컬 임베딩은 모델 적재 10.1초, 질문 1건 13.7ms(p50)다.
+
 지도 타일은 별도 제공처 요청이다. 피크 지도 보기 2.21회/초, 화면당 20타일·캐시 60% 가정이면 약 17.7타일/초이며 앱 API 26.5 RPS와 구분한다. 자체 타일 저장소는 별도 산정한다.
 
 | 항목 | 개발·탑재 계획 |
@@ -269,7 +271,7 @@ OpenStreetMap 기반 지도에서 기존 이용 지역과 새 관심 지역을 �
 | 센터 데이터 공간 | (10 + 0.80 + 2) ÷ 0.7 = 약 18.3GiB → 기존 25GiB 계획 유지 |
 | 별도 백업 공간 | 공개 DB 10GiB × 2본 ÷ 0.7 = 약 28.6GiB → 별도 매체 30GiB 계획 |
 
-단위: GiB = 1,024³바이트. 로그는 0.5KiB/HTTP·7일 피크 가정이며, OS·패키지·첨부는 별도다. 응답 벡터·인덱스의 추가 저장량은 실측 전이며 25GiB 계획에 충분한지 별도 확인한다. 공개 캐시·외부 백업은 센터 정책에 따라 적용한다.
+단위: GiB = 1,024³바이트. 로그는 0.5KiB/HTTP·7일 피크 가정이며, OS·패키지·첨부는 별도다. 응답 벡터·인덱스의 추가 저장량은 2026-11-08 실측에서 응답 캐시 행 평균 5.9KiB(벡터 포함 14/22행), 공개 원천 캐시 행 평균 4.8KiB(최대 7.9KiB), 근거 행 평균 2.8KiB였다. 10만 건이면 응답 캐시 약 0.57GiB로 25GiB 계획 안이며, 행 수가 적어 인덱스 고정 비용이 포함된 값이다. 공개 캐시·외부 백업은 센터 정책에 따라 적용한다.
 
 **월 최대 및 연간 월평균 예상 API 비용: 도민 5% 이용 가정**
 
@@ -282,6 +284,7 @@ OpenStreetMap 기반 지도에서 기존 이용 지역과 새 관심 지역을 �
 | 유사 질문 캐시 | 각 달 AI 작업의 30%를 캐시 응답으로 처리 |
 | 월 최대 예상 API 비용 | **약 30만 원 ($225.25)** |
 | 연간 월평균 API 비용 | **약 6만 3천 원 ($46.93)** |
+| 실측 기준 재계산 | 2026-11-08 실호출 2건 평균 작업당 호출 2회·입력 9,393·출력 614토큰 적용 시 월 최대 약 70만 원 ($519.88), 연간 월평균 약 14만 5천 원 ($108.31). 표본은 3후보 날씨 비교 작업이며 프롬프트 캐시 할인 미적용 |
 
 GPT-6 Luna 기준, 1달러 1,342원 적용.
 
@@ -298,5 +301,5 @@ GPT-6 Luna 기준, 1달러 1,342원 적용.
 9. **지도·주소·거리뷰**: OSM 저작자 표시와 타일 정책, Daum 우편번호 서비스, Google Maps 거리뷰 URL. [저작권·ODbL](https://www.openstreetmap.org/copyright) · [타일 사용정책](https://operations.osmfoundation.org/policies/tiles/) · [Daum 우편번호](https://postcode.map.kakao.com/guide) · [거리뷰 URL](https://developers.google.com/maps/documentation/urls/guide#street-view-action)
 10. **OpenAI GPT-6 Luna**: Standard 토큰 가격, 캐시 쓰기, 추론·사용 한도. [모델·가격](https://developers.openai.com/api/docs/models/gpt-6-luna) · [프롬프트 캐시](https://developers.openai.com/api/docs/guides/prompt-caching) · [추론 토큰](https://developers.openai.com/api/docs/guides/reasoning) · [API 한도](https://developers.openai.com/api/docs/guides/rate-limits)
 11. **달러·원 참고 환율**: 2026-11-05 09:24 UTC, 1달러 1,341.89원. 본문은 1,342원으로 반올림. [USD/KRW](https://www.live-rates.com/rates/usd-krw)
-12. **실측·재계산 자료**: 제주데이터허브·aT는 표본 실호출, 기상청 ASOS·AWS는 공개표 추출, 단기예보는 2026-11-08 실호출이다. ZIP에 검증 CSV·JSON을 수록했다.
+12. **실측·재계산 자료**: 제주데이터허브·aT는 표본 실호출, 기상청 ASOS·AWS는 공개표 추출, 단기예보는 2026-11-08 실호출이다. HTTP 부하·임베딩·저장 행 크기·모델 토큰 실측은 `load-20261108.json`이다. ZIP에 검증 CSV·JSON을 수록했다.
 13. **유사 질문·응답 캐시**: 코사인 거리·벡터 검색, 한국어 다국어 임베딩, 유사 응답의 오래된 정보·오답 가능성, CPU 전용 torch 컨테이너. [pgvector](https://github.com/pgvector/pgvector/blob/v0.8.7/README.md) · [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small) · [캐시 주의사항](https://learn.microsoft.com/en-us/azure/api-management/llm-semantic-cache-lookup-policy) · [PyTorch](https://pytorch.org/get-started)

@@ -1,0 +1,190 @@
+{
+  "checked_on": "2026-11-08",
+  "machine": {
+    "cpu": "Apple M1 Pro",
+    "cores": 8,
+    "memory_gib": 16,
+    "os": "macOS (Darwin 27.2)",
+    "note": "개발 PC 실측. 센터 최소사양(i7-8700/32GB) 실측이 아니다."
+  },
+  "http_load": {
+    "target": "Compose app container gosariit-app:local (arm64, 단일 프로세스), DB pgvector/pgvector:pg18 컨테이너",
+    "client": "httpx AsyncClient, 동일 호스트, keep-alive",
+    "scenarios": [
+      {
+        "path": "/health/ready",
+        "concurrency": 30,
+        "seconds": 20,
+        "requests": 10992,
+        "rps": 548.0,
+        "p50_ms": 28.5,
+        "p95_ms": 177.0,
+        "p99_ms": 304.7,
+        "max_ms": 729.8,
+        "errors": 0,
+        "error_sample": []
+      },
+      {
+        "path": "/stations/",
+        "concurrency": 30,
+        "seconds": 20,
+        "requests": 10772,
+        "rps": 538.0,
+        "p50_ms": 34.2,
+        "p95_ms": 167.0,
+        "p99_ms": 260.3,
+        "max_ms": 558.9,
+        "errors": 0,
+        "error_sample": []
+      },
+      {
+        "path": "/stations/",
+        "concurrency": 60,
+        "seconds": 20,
+        "requests": 11848,
+        "rps": 590.6,
+        "p50_ms": 63.2,
+        "p95_ms": 294.2,
+        "p99_ms": 462.6,
+        "max_ms": 988.3,
+        "errors": 0,
+        "error_sample": []
+      }
+    ],
+    "container_stats_sample": {
+      "app_cpu_percent_during_ready_test": 139.22,
+      "app_mem_mib": 442.2,
+      "db_cpu_percent": 0.5,
+      "db_mem_mib": 34.5
+    },
+    "design_peak_rps": 26.5,
+    "design_double_rps": 53.0
+  },
+  "embedding": {
+    "model": "intfloat/multilingual-e5-small (CPU, torch threads 2)",
+    "load_seconds": 10.11,
+    "queries": 20,
+    "p50_ms": 13.7,
+    "p95_ms": 15.2,
+    "mean_ms": 13.9,
+    "dimensions": 384
+  },
+  "storage_rows": {
+    "public_response_cache": {
+      "rows": 22,
+      "rows_with_embedding": 14,
+      "avg_row_bytes": 5925,
+      "total_relation_bytes": 294912
+    },
+    "public_source_cache": {
+      "rows": 16,
+      "avg_row_bytes": 4951,
+      "max_row_bytes": 8080,
+      "total_relation_bytes": 237568
+    },
+    "public_evidence": {
+      "rows": 140,
+      "avg_row_bytes": 2842,
+      "total_relation_bytes": 557056
+    },
+    "database_bytes": 9959103,
+    "note": "행 수가 적어 인덱스·페이지 고정 비용 비중이 크다. 10만 행 추정은 avg_row_bytes 기준이다."
+  },
+  "model_runs": [
+    {
+      "calls": 2,
+      "input_tokens": 9377,
+      "output_tokens": 651,
+      "total_tokens": 10028,
+      "elapsed_ms": 11394,
+      "rank_one": "애월",
+      "recommended": "애월",
+      "recommendation_matches_rank_one": true,
+      "rank_corrections": 0,
+      "candidates": [
+        {
+          "station": "애월",
+          "rank": 1,
+          "precipitation_probability": 60.0,
+          "temperature_c": 17.0,
+          "wind_speed_kmh": 17.3,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        },
+        {
+          "station": "성산",
+          "rank": 2,
+          "precipitation_probability": 60.0,
+          "temperature_c": 17.0,
+          "wind_speed_kmh": 22.7,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        },
+        {
+          "station": "서귀포",
+          "rank": 3,
+          "precipitation_probability": 60.0,
+          "temperature_c": 15.0,
+          "wind_speed_kmh": 11.9,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        }
+      ]
+    },
+    {
+      "calls": 2,
+      "input_tokens": 9409,
+      "output_tokens": 577,
+      "total_tokens": 9986,
+      "elapsed_ms": 8559,
+      "rank_one": "성산",
+      "recommended": "성산",
+      "recommendation_matches_rank_one": true,
+      "rank_corrections": 0,
+      "candidates": [
+        {
+          "station": "성산",
+          "rank": 1,
+          "precipitation_probability": 0.0,
+          "temperature_c": 12.0,
+          "wind_speed_kmh": 27.7,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        },
+        {
+          "station": "애월",
+          "rank": 2,
+          "precipitation_probability": 0.0,
+          "temperature_c": 11.0,
+          "wind_speed_kmh": 24.5,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        },
+        {
+          "station": "한라산남벽",
+          "rank": 3,
+          "precipitation_probability": 20.0,
+          "temperature_c": -1.0,
+          "wind_speed_kmh": 16.9,
+          "source": "기상청 단기예보",
+          "published_at": "2026-11-08T17:00:00+09:00"
+        }
+      ]
+    }
+  ],
+  "cost_recalculation": {
+    "measured_avg_input_tokens_per_task": 9393.0,
+    "measured_avg_output_tokens_per_task": 614.0,
+    "measured_calls_per_task": 2,
+    "unit_cost_usd_measured": 0.001246,
+    "unit_cost_usd_plan": 0.00054,
+    "peak_month_usd": 519.88,
+    "other_season_month_usd": 346.58,
+    "off_season_month_usd": 43.32,
+    "annual_average_usd": 108.31,
+    "peak_month_krw": 697674,
+    "annual_average_krw": 145349,
+    "pricing": "GPT-6 Luna Standard 입력 $0.10/M·출력 $0.50/M, 프롬프트 캐시 할인 미적용(실측 cached 0)",
+    "note": "표본 2건은 3후보 날씨 비교 작업이며 가벼운 안내 답변은 토큰이 적다."
+  }
+}

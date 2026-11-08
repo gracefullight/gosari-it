@@ -94,6 +94,6 @@ aT 도매 정산은 기관 실조회다. 산림조합 조사가와 소매 상품
 
 자동 검사와 실제 모델·기관·브라우저·실기기 결과는 [구현 결과](docs/submission-results.md)에서 구분한다. 기존 제출 PDF·ZIP·`submission-20261108.json`은 해당 소스·이미지의 이전 스냅샷이며 새 캐시의 실증을 대신하지 않는다. 이전 회귀 수나 기존 컨테이너를 최신 제출 이미지의 검증으로 사용하지 않는다.
 
-실제 [캐시 검증](docs/verification/cache-20261108.json)에서는 별도 세션의 exact·의미·공개 후속 문맥과 API 재시작 뒤 DB 재사용을 모델 0회로 확인했다. 기존 AMD64 이미지에 현재 API 소스를 읽기 전용으로 연결한 실행이며 새 이미지·ZIP·PDF를 생성한 검증은 아니다.
+실제 [캐시 검증](docs/verification/cache-20261108.json)에서는 별도 세션의 exact·의미·공개 후속 문맥과 API 재시작 뒤 DB 재사용을 모델 0회로 확인했다. 기존 AMD64 이미지에 현재 API 소스를 읽기 전용으로 연결한 실행이며 새 이미지·ZIP·PDF를 생성한 검증은 아니다. [부하·토큰 실측](docs/verification/load-20261108.json)은 개발 PC 컨테이너의 HTTP 부하, 임베딩 지연, 저장 행 크기, 모델 실호출 2건의 토큰과 추천·순위 일치를 기록한다.
 
 프로젝트는 MIT 라이선스다: [LICENSE](LICENSE). 오픈소스·모델·지도·기관 데이터의 조건은 [AI·의존성 목록](docs/ai-and-dependencies.md)과 [데이터 활용 명세](docs/data-usage.md)를 따른다. 캐릭터는 전용 제작 이미지다.
