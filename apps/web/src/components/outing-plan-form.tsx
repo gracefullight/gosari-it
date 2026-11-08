@@ -120,7 +120,7 @@ export function OutingPlanForm({ initialDate }: { initialDate: string }) {
       const job = await api.runAnalysis(
         {
           operation: "outing_compare",
-          source_ids: ["open_meteo"],
+          source_ids: ["kma_vilage", "open_meteo"],
           ...submittedConditions,
         },
         undefined,

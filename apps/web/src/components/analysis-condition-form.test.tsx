@@ -145,7 +145,7 @@ it("resolves missing outing conditions inside chat while preserving the parsed d
   expect(confirmSpec).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({
       operation: "outing_compare",
-      source_ids: ["open_meteo"],
+      source_ids: ["kma_vilage", "open_meteo"],
       candidates: [{ location_id: "aewol", date: "2026-11-08", time_slot: "09:00" }],
     }),
     expect.any(String),

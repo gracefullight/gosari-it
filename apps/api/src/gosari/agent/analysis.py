@@ -594,7 +594,7 @@ class AnalysisEngine:
         if self.settings.app_profile != "replay":
             from gosari.sources.outing import compare_outings
 
-            return compare_outings(spec, request_id, self.checkpoint)
+            return compare_outings(spec, request_id, self.checkpoint, settings=self.settings)
         return compare_outings_replay(spec, request_id, settings=self.settings, replay=self.replay)
 
     def _survey_link(self, spec: dict[str, Any], request_id: str) -> ResultEnvelope:

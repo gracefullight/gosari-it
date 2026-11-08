@@ -222,7 +222,7 @@ def public_plan(text: str) -> dict[str, Any] | None:
             return None
         return {
             "operation": "outing_compare",
-            "source_ids": ["open_meteo"],
+            "source_ids": ["kma_vilage", "open_meteo"],
             "candidates": candidates,
             "preferred_elements": ["low_rain", "mild_temperature", "low_wind"],
         }

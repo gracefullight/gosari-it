@@ -47,7 +47,7 @@ it("submits locations and exact hours with a unique, reordered preference list",
   await waitFor(() =>
     expect(run.mock.calls[0]?.[0]).toEqual({
       operation: "outing_compare",
-      source_ids: ["open_meteo"],
+      source_ids: ["kma_vilage", "open_meteo"],
       candidates: [
         { location_id: "jeju", date: "2026-11-08", time_slot: "09:00" },
         { location_id: "seogwipo", date: "2026-11-09", time_slot: "12:00" },

@@ -72,6 +72,8 @@ interface OutingCandidate {
     source: string;
     source_url?: string;
     target_at: string;
+    published_at?: string | null;
+    precipitation_text?: string | null;
     recent_context?: {
       days: number;
       total_rain_mm: number | null;
@@ -197,6 +199,19 @@ export function OutingComparisonView({
                           </dd>
                         </div>
                       </dl>
+                      <p className="text-base text-muted-foreground">
+                        출처 {cand.weather.source}
+                        {cand.weather.kind === "forecast" ? (
+                          <>
+                            {" · 발표 "}
+                            {cand.weather.published_at
+                              ? formatDisplayDateTime(cand.weather.published_at)
+                              : "미제공"}
+                          </>
+                        ) : null}
+                        {" · 대상 "}
+                        {formatDisplayDateTime(cand.weather.target_at)}
+                      </p>
                     </div>
                   ) : null}
                   {cand.current_observation ? (

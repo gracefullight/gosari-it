@@ -171,7 +171,7 @@ SOURCES = {
     "station_search": ["jeju_578"],
     "history_compare": ["jeju_579"],
     "region_compare": ["jeju_579"],
-    "outing_compare": ["open_meteo"],
+    "outing_compare": ["kma_vilage", "open_meteo"],
     "forecast_compare": ["kma_vilage"],
     "market_query": ["at_settlement"],
     "survey_link": ["forestinfo"],

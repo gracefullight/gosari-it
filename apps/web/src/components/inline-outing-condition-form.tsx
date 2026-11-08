@@ -69,7 +69,7 @@ export function InlineOutingConditionForm({
         onConfirm(
           {
             operation: "outing_compare",
-            source_ids: ["open_meteo"],
+            source_ids: ["kma_vilage", "open_meteo"],
             candidates: candidates.map(({ location, date, time }) => ({
               location_id: location,
               date,
