@@ -33,6 +33,29 @@ const DEFAULT_OPTIONS: MarketOptions = {
   grades: [],
   packages: [],
 };
+function mergeOptionNames(previous: Option[], current: Option[]): Option[] {
+  const byValue = new Map<string, Option>();
+  for (const option of [...previous, ...current]) byValue.set(option.value, option);
+  return [...byValue.values()];
+}
+function rememberMarketOptions(previous: MarketOptions, current: MarketOptions): MarketOptions {
+  return {
+    markets: mergeOptionNames(previous.markets, current.markets),
+    forms: mergeOptionNames(previous.forms, current.forms),
+    grades: mergeOptionNames(previous.grades, current.grades),
+    packages: mergeOptionNames(previous.packages, current.packages),
+    weights: mergeOptionNames(previous.weights ?? [], current.weights ?? []),
+  };
+}
+function clearExtraFilters(filters: PriceFilters): PriceFilters {
+  return {
+    ...filters,
+    grade: "",
+    package_code: "",
+    package_weight_unit: "",
+    origin_filter: "",
+  };
+}
 function todayInJeju() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -146,7 +169,7 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
             onSubmit={(event) => {
               event.preventDefault();
               if (!dateInvalid && filters.market_ids.length) {
-                setAppliedLabels(options);
+                setAppliedLabels((previous) => rememberMarketOptions(previous, options));
                 setApplied({ ...filters });
                 setFiltersOpen(false);
               }
@@ -400,16 +423,8 @@ export function PriceLookupPage({ initialChannel = "retail" }: { initialChannel?
               <Button
                 variant="outline"
                 onClick={() => {
-                  const cleared = {
-                    ...applied,
-                    grade: "",
-                    package_code: "",
-                    package_weight_unit: "",
-                    origin_filter: "",
-                  };
-                  setFilters(cleared);
-                  setApplied(cleared);
-                  setFiltersOpen(false);
+                  setFilters(clearExtraFilters);
+                  setApplied(clearExtraFilters);
                 }}
               >
                 세부 조건 지우기

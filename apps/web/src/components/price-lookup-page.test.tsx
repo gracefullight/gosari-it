@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as datePickerField from "@/components/date-picker-field";
 import { PriceCardList } from "@/components/price-card-list";
 import { PriceLookupPage } from "@/components/price-lookup-page";
 
@@ -108,6 +109,22 @@ describe("PriceLookupPage cache", () => {
     expect(
       (screen.getByLabelText("포장") as HTMLSelectElement).selectedOptions[0].textContent
     ).toBe("상자");
+    for (let repeat = 0; repeat < 3; repeat += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+      await screen.findByText(
+        (text, element) =>
+          element?.tagName === "P" && text.includes("특등급") && text.includes("상자")
+      );
+      await act(async () => {});
+      expect(request).toHaveBeenCalledTimes(2);
+      fireEvent.click(screen.getByRole("button", { name: "조회 조건 변경" }));
+      expect(
+        (screen.getByLabelText("등급") as HTMLSelectElement).selectedOptions[0].textContent
+      ).toBe("특등급");
+      expect(
+        (screen.getByLabelText("포장") as HTMLSelectElement).selectedOptions[0].textContent
+      ).toBe("상자");
+    }
     fireEvent.click(screen.getByRole("button", { name: "세부 조건 지우기" }));
     await screen.findByRole("button", { name: "날짜·시장 바꾸기" });
     expect((screen.getByLabelText("등급") as HTMLSelectElement).value).toBe("");
@@ -125,6 +142,114 @@ describe("PriceLookupPage cache", () => {
     );
     expect(requests[0].settlement_date).toBe(requests[1].settlement_date);
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears only extra conditions while retaining an unsubmitted date, market and form draft", async () => {
+    queryClient = new QueryClient();
+    vi.spyOn(datePickerField, "DatePickerField").mockImplementation(
+      ({ id, value, onChange, "aria-label": label }) => (
+        <input
+          id={id}
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )
+    );
+    const options = {
+      markets: [
+        { value: "110001", label: "서울가락" },
+        { value: "210001", label: "부산엄궁" },
+      ],
+      forms: [
+        { value: "생고사리", label: "생고사리" },
+        { value: "건고사리", label: "건고사리" },
+      ],
+      grades: [{ value: "grade-a", label: "특등급" }],
+      packages: [{ value: "package-a", label: "상자" }],
+      weights: [{ value: "200g", label: "200g" }],
+    };
+    const requests: Record<string, unknown>[] = [];
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const spec = JSON.parse(String(init?.body)).spec as Record<string, unknown>;
+      requests.push(spec);
+      return new Response(
+        JSON.stringify({
+          job_id: "job-draft",
+          request_id: "request-draft",
+          stage: "completed",
+          created_at: "now",
+          result: {
+            request_id: "request-draft",
+            result: {
+              price_cards: [],
+              options: spec.grade ? { ...options, grades: [], packages: [], weights: [] } : options,
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PriceLookupPage initialChannel="wholesale" />
+      </QueryClientProvider>
+    );
+    await screen.findByText("선택한 날짜·시장에서 조건에 맞는 거래가 없습니다.");
+    const appliedDate = (screen.getByLabelText("가격 시작일") as HTMLInputElement).value;
+    fireEvent.click(screen.getByText("세부 조건"));
+    fireEvent.change(screen.getByLabelText("등급"), { target: { value: "grade-a" } });
+    fireEvent.change(screen.getByLabelText("포장"), { target: { value: "package-a" } });
+    fireEvent.change(screen.getByLabelText("단량"), { target: { value: "200g" } });
+    fireEvent.change(screen.getByLabelText("산지명"), { target: { value: "제주" } });
+    fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    await screen.findByRole("button", { name: "세부 조건 지우기" });
+    fireEvent.click(await screen.findByRole("button", { name: "조회 조건 변경" }));
+    const draftDate = new Date(`${appliedDate}T12:00:00Z`);
+    draftDate.setUTCDate(draftDate.getUTCDate() - 1);
+    const newDate = draftDate.toISOString().slice(0, 10);
+    fireEvent.change(screen.getByLabelText("가격 시작일"), { target: { value: newDate } });
+    fireEvent.change(screen.getByLabelText("가격 종료일"), { target: { value: newDate } });
+    fireEvent.change(screen.getByLabelText("시장", { exact: true }), {
+      target: { value: "210001" },
+    });
+    fireEvent.change(screen.getByLabelText("고사리 종류"), { target: { value: "건고사리" } });
+    fireEvent.click(screen.getByRole("button", { name: "세부 조건 지우기" }));
+    expect(screen.getByRole("button", { name: "가격 조회" })).toBeTruthy();
+    await screen.findByRole("button", { name: "날짜·시장 바꾸기" });
+    expect((screen.getByLabelText("가격 시작일") as HTMLInputElement).value).toBe(newDate);
+    expect((screen.getByLabelText("가격 종료일") as HTMLInputElement).value).toBe(newDate);
+    expect((screen.getByLabelText("시장", { exact: true }) as HTMLSelectElement).value).toBe(
+      "210001"
+    );
+    expect((screen.getByLabelText("고사리 종류") as HTMLSelectElement).value).toBe("건고사리");
+    for (const label of ["등급", "포장", "단량", "산지명"]) {
+      expect((screen.getByLabelText(label) as HTMLInputElement | HTMLSelectElement).value).toBe("");
+    }
+    await act(async () => {});
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(requests[1]).toEqual(
+      expect.objectContaining({
+        settlement_date: appliedDate,
+        market_ids: ["110001"],
+        grade: "grade-a",
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "가격 조회" }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+    expect(requests[2]).toEqual(
+      expect.objectContaining({
+        settlement_date: newDate,
+        settlement_date_end: newDate,
+        market_ids: ["210001"],
+        fresh_or_dried: "건고사리",
+        grade: "",
+        package_code: "",
+        package_weight_unit: "",
+        origin_filter: "",
+      })
+    );
   });
 
   it("reuses each channel after switching and remounting, and refreshes explicitly", async () => {
