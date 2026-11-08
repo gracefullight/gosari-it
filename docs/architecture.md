@@ -1,7 +1,5 @@
 # 서버 구성과 데이터 구조
 
-기준: 2026-11-08 소스. 표의 열은 로컬 Compose DB(`gosari_public`)의 실제 스키마를 읽어 적었다. migration 원본은 `apps/api/alembic/versions/`에 있다.
-
 ## 서버 구성
 
 센터 PC 한 대에서 Docker Compose로 컨테이너 2개를 띄운다. 브라우저는 `127.0.0.1:8765` 한 곳만 접속한다.
