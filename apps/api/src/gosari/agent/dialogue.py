@@ -598,18 +598,29 @@ def _compact_tool(
         ranked = _outing_ranking(output)
         compact["actual_ranking"] = [
             {
-                key: row.get(key)
-                for key in (
-                    "candidate_id",
-                    "location_id",
-                    "station_name",
-                    "target_date",
-                    "target_time_window",
-                    "rank",
-                )
+                **{
+                    key: row.get(key)
+                    for key in (
+                        "candidate_id",
+                        "location_id",
+                        "station_name",
+                        "target_date",
+                        "target_time_window",
+                        "rank",
+                    )
+                },
+                "weather": {
+                    key: row.get("weather", {}).get(key)
+                    for key in (
+                        "temperature_c",
+                        "precipitation_probability",
+                        "wind_speed_kmh",
+                    )
+                },
             }
             for row in ranked
         ]
+        compact["preferred_elements"] = list(spec.get("preferred_elements", []))
         compact["ranked_candidate_ids"] = [row.get("candidate_id") for row in ranked]
         for row in ranked:
             station = str(row.get("station_name") or "")

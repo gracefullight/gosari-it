@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 
 FINGERPRINT_VERSION = "fingerprint-v2-public-db"
 CALCULATION_VERSION = "calc-v1"
-PROMPT_VERSION = "prompt-v10-station-tools"
-TOOL_SCHEMA_VERSION = "tools-v7-public-locations"
+PROMPT_VERSION = "prompt-v11-candidate-comparison"
+TOOL_SCHEMA_VERSION = "tools-v8-ranked-weather-context"
 SAFETY_POLICY_VERSION = "safety-v1"
 
 
