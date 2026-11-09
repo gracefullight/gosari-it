@@ -75,6 +75,7 @@ const EXACT = new Set([
   "docs/user-manual.md",
   "docs/ai-and-dependencies.md",
   "docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.md",
+  "docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf",
   "docs/proposal/assets/제주고사리_정보구조_IA_v0.21.svg",
   "docs/proposal/assets/제주고사리_시스템구조도_v0.21.svg",
   "docs/proposal/assets/제주고사리_에이전트흐름도_v0.21.svg",
