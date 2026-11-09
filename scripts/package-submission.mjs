@@ -80,9 +80,6 @@ const EXACT = new Set([
   "docs/proposal/assets/제주고사리_에이전트흐름도_v0.21.svg",
   "docs/proposal/assets/고사리잇_제목아이콘_64.png",
   "docs/proposal/assets/고사리잇_고사리캐릭터_256.png",
-  "docs/verification/submission-20261108.json",
-  "docs/verification/cache-20261108.json",
-  "docs/verification/load-20261108.json",
   "fixtures/aT_고사리정산_시장별_봄_표본검증.csv",
   "fixtures/기상청_ASOS_제주184_2026봄_61일_표추출.csv",
   "fixtures/기상청_제주_당일관측_20261105_1843KST_검증.csv",
@@ -335,7 +332,7 @@ export function collectSubmission({
     seen.add(identity);
     const bytes = readFileSync(source);
     assertSafeContent(name, bytes);
-    if (kind === "receipt" || name === "docs/verification/submission-20261108.json") {
+    if (kind === "receipt") {
       let value;
       try {
         value = JSON.parse(bytes.toString("utf8"));

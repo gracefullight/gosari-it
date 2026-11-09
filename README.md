@@ -54,7 +54,6 @@ mise run up                        # 이미지 빌드 → DB → 앱 시작
 - [서버 구성과 ERD](docs/architecture.md): 컨테이너 구성도, 테이블 관계도
 - [에이전트 실행·캐시 구조](docs/agent-runtime.md)
 - 기획서: [원고](docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.md) · [PDF](docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf)
-- 실측 기록: [부하·토큰·비용](docs/verification/load-20261108.json), [캐시 검증](docs/verification/cache-20261108.json), [제출 실행 영수증](docs/verification/submission-20261108.json)
 
 ## 라이선스
 

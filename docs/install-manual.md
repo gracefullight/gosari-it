@@ -10,7 +10,7 @@
 | 네이티브 개발 | API 8000·Vite 5173·로컬 DB 15432                               |
 | Compose       | 기본 UI/API `http://127.0.0.1:8765`, DB 내부 주소 `db:5432`    |
 
-이미지의 Node·Python·uv·Dockerfile frontend 기반은 제출 빌드에 사용한 실제 digest로 고정하고, Bun·Python 의존성은 잠금 파일을 사용한다. 최종 이미지·플랫폼 식별자는 검증 영수증을 따른다.
+이미지의 Node·Python·uv·Dockerfile frontend 기반은 제출 빌드에 사용한 실제 digest로 고정하고, Bun·Python 의존성은 잠금 파일을 사용한다.
 
 앱 DB 역할은 `gosari_app`이다. 관리자 비밀번호는 DB 초기화에만 사용하고 앱 컨테이너에서는 비워 둔다. 앱은 읽기 전용 루트 파일시스템·UID10001로 실행한다.
 
@@ -139,7 +139,7 @@ mise run infra:down
 
 ## 7. 환경별 검증 범위
 
-2026-11-08 [새 캐시 검증](verification/cache-20261108.json)은 기존 Linux AMD64 이미지에 현재 API 소스를 읽기 전용으로 연결하고 새 격리 DB를 사용했다. 별도 세션·API 재시작 뒤 DB exact, 벡터 없는 exact와 보강 후 의미 적중, 공개 후속 문맥 재사용을 확인했다. 이 실행은 새 이미지 빌드·새 제출 ZIP·PDF 검증과 구분한다.
+2026-11-08 캐시 검증은 기존 Linux AMD64 이미지에 현재 API 소스를 읽기 전용으로 연결하고 새 격리 DB를 사용했다. 별도 세션·API 재시작 뒤 DB exact, 벡터 없는 exact와 보강 후 의미 적중, 공개 후속 문맥 재사용을 확인했다.
 
 Linux 컨테이너는 Uvicorn의 asyncio 실행과 psycopg 동기 풀을 사용한다. 최신 이미지·빈 DB 실행 여부는 [구현 결과](submission-results.md)에 이미지 식별자와 함께 기록한다. 기존 이미지에 최신 소스만 연결한 실행과 새 제출 이미지를 구분한다.
 
@@ -147,7 +147,7 @@ Windows 센터 PC·WSL2·Docker Desktop과 실제 휴대폰의 전체 설치·�
 
 ## 8. 제출 실행본과 소스 ZIP
 
-제출 묶음은 검토한 커밋, 기획서 PDF, 빈 DB 기동 영수증으로 만든다. 영수증의 소스 커밋·이미지 ID가 제출 커밋과 같은지 확인한다. 확인 범위는 [구현 결과](submission-results.md)에 있다.
+제출 묶음은 검토한 커밋과 기획서 PDF로 만든다. 확인 범위는 [구현 결과](submission-results.md)에 있다.
 
 센터용 Linux AMD64 이미지는 별도 태그로 빌드한다.
 
@@ -170,15 +170,15 @@ SUBMISSION_RUNTIME_DIR=.local/submission-runtime-check mise run submission:stop
 uv run --no-project --with reportlab --with pypdf python scripts/render-proposal-report.py --output docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf
 ```
 
-포함 파일 목록은 `--dry-run`으로 먼저 확인하고, 기획서 PDF와 검증 JSON을 지정해 소스 ZIP을 만든 뒤 추출 검증을 돌린다.
+포함 파일 목록은 `--dry-run`으로 먼저 확인하고, 기획서 PDF를 지정해 소스 ZIP을 만든 뒤 추출 검증을 돌린다.
 
 ```sh
 node scripts/package-submission.mjs --dry-run
-mise run submission:package -- --proposal docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf --receipt docs/verification/submission-20261108.json
+mise run submission:package -- --proposal docs/proposal/제주고사리_AI_Agent_개발기획서_v0.21.pdf
 node scripts/package-submission.mjs --verify .local/submission-20261108/gosari-it-<commit>.zip
 ```
 
-결과는 `.local/submission-20261108/` 아래에 ZIP, 파일별 SHA256 매니페스트, ZIP SHA256, 추출 검증 결과로 남는다. ZIP 안에는 `submission/proposal.pdf`와 `submission/receipts/`가 들어간다. 커밋 이후 바뀐 파일은 `dirty_source_paths`로 표시되므로 제출 전에 비어 있는지 본다.
+결과는 `.local/submission-20261108/` 아래에 ZIP, 파일별 SHA256 매니페스트, ZIP SHA256, 추출 검증 결과로 남는다. ZIP 안에는 README에서 링크한 문서와 `submission/proposal.pdf`가 들어간다. 커밋 이후 바뀐 파일은 `dirty_source_paths`로 표시되므로 제출 전에 비어 있는지 본다.
 
 포장 도구는 허용한 소스·문서·표본·잠금 파일만 포함하고 실제 `.env`·개인 DB·실행 비밀·에이전트 작업 폴더를 제외한다. ZIP의 파일별 해시·매니페스트·SHA256과 추출 검증 결과를 생성한다. 선택적 시연 영상은 `--video path/to/demo.mp4`로 지정한다. 포장 명령 자체는 앱 실행이나 모델 호출을 하지 않는다.
 
