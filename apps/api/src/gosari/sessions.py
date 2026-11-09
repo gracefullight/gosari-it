@@ -7,6 +7,8 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import psycopg
+import psycopg.sql
 from psycopg.types.json import Jsonb
 
 from gosari.config import Settings, get_settings
@@ -44,6 +46,8 @@ class Session:
         self.lifecycle = "active"
         self.onboarding_state = "welcome"
         self.active_conversation_id: str | None = None
+        self.member_id: str | None = None
+        self.login_id: str | None = None
         self.notebook: dict[str, NotebookEntry] = {}
         self.contacts: dict[str, PersonalContact] = {}
         self.regions: dict[str, PrivateRegion] = {}
@@ -97,12 +101,13 @@ class SessionStore:
                         """
                         INSERT INTO app_session (
                             session_id, created_at, expires_at, last_activity_at,
-                            lifecycle, control_state
-                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                            lifecycle, member_id, control_state
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (session_id) DO UPDATE SET
                             expires_at = EXCLUDED.expires_at,
                             last_activity_at = EXCLUDED.last_activity_at,
                             lifecycle = EXCLUDED.lifecycle,
+                            member_id = EXCLUDED.member_id,
                             control_state = EXCLUDED.control_state
                         """,
                         (
@@ -111,6 +116,7 @@ class SessionStore:
                             session.expires_at,
                             session.last_activity_at,
                             session.lifecycle,
+                            session.member_id,
                             Jsonb(
                                 {
                                     "previews": {
@@ -253,16 +259,19 @@ class SessionStore:
             with connection() as conn:
                 row = conn.execute(
                     """
-                    SELECT session_id, created_at, expires_at, last_activity_at,
-                           lifecycle, control_state
-                    FROM app_session
-                    WHERE session_id = %s
+                    SELECT s.session_id, s.created_at, s.expires_at, s.last_activity_at,
+                           s.lifecycle, s.control_state, s.member_id, m.login_id
+                    FROM app_session s
+                    LEFT JOIN app_member m ON m.member_id = s.member_id
+                    WHERE s.session_id = %s
                     """,
                     (session_id,),
                 ).fetchone()
                 if not row or row[4] != "active":
                     return None
                 s = Session(self._settings, session_id=str(row[0]))
+                s.member_id = str(row[6]) if len(row) > 6 and row[6] is not None else None
+                s.login_id = str(row[7]) if len(row) > 7 and row[7] is not None else None
                 s.created_at = (
                     row[1] if isinstance(row[1], datetime) else datetime.fromisoformat(str(row[1]))
                 )
@@ -462,6 +471,94 @@ class SessionStore:
                 raise GosariError("DATABASE_UNAVAILABLE")
             session.close()
             self._sessions.pop(session.session_id, None)
+
+    def find_member_session(self, member_id: str) -> Session | None:
+        """회원의 기본 세션(가장 먼저 연결된 활성 세션)을 찾는다."""
+        with self._lock:
+            cached = sorted(
+                (
+                    s
+                    for s in self._sessions.values()
+                    if s.member_id == member_id and s.lifecycle == "active"
+                ),
+                key=lambda s: s.created_at,
+            )
+            if cached:
+                return cached[0]
+        if not db_available():
+            if self._settings.resolved_db_password:
+                raise GosariError("DATABASE_UNAVAILABLE")
+            return None
+        try:
+            with connection() as conn:
+                row = conn.execute(
+                    """SELECT session_id FROM app_session
+                    WHERE member_id = %s AND lifecycle = 'active'
+                    ORDER BY created_at ASC LIMIT 1""",
+                    (member_id,),
+                ).fetchone()
+        except Exception as exc:
+            logger.warning("member session lookup failed", extra={"error_type": type(exc).__name__})
+            raise GosariError("DATABASE_UNAVAILABLE") from exc
+        if not row:
+            return None
+        try:
+            return self.get(str(row[0]))
+        except GosariError:
+            return None
+
+    def attach_member(self, session: Session, member_id: str, login_id: str) -> Session:
+        """현재 세션을 회원에 연결한다. 회원의 기본 세션이 따로 있으면 현재 세션의 개인 기록을
+        그 세션으로 합치고 현재 세션은 종료한다. 반환값이 이후 쿠키에 실릴 세션이다."""
+        home = self.find_member_session(member_id)
+        if home is None or home.session_id == session.session_id:
+            with session.lock:
+                session.member_id = member_id
+                session.login_id = login_id
+                self.save(session)
+            return session
+        with self._lock, home.lock, session.lock:
+            session.touch()
+            # 개인 기록의 기본키는 세션과 무관하게 전역이므로, 익명 세션의 행을 먼저 회원 세션으로
+            # 옮긴 뒤 회원 세션을 저장해야 같은 키가 두 번 들어가지 않는다.
+            self._rekey_rows(session.session_id, home.session_id)
+            home.notebook.update(session.notebook)
+            home.contacts.update(session.contacts)
+            home.regions.update(session.regions)
+            home.share_drafts.update(session.share_drafts)
+            home.login_id = login_id
+            self.save(home)
+            session.close()
+            self._sessions.pop(session.session_id, None)
+        return home
+
+    def _rekey_rows(self, source_session_id: str, target_session_id: str) -> None:
+        """익명 세션의 개인 기록 행을 회원 세션으로 옮기고 익명 세션 행을 지운다 (단일 트랜잭션)."""
+        if not db_available():
+            if self._settings.resolved_db_password:
+                raise GosariError("DATABASE_UNAVAILABLE")
+            return
+        try:
+            with connection() as conn:
+                for table in (
+                    "personal_notebook_entry",
+                    "personal_private_region",
+                    "personal_share_draft",
+                    "personal_contact",
+                ):
+                    conn.execute(
+                        psycopg.sql.SQL(
+                            "UPDATE {} SET session_id = %s WHERE session_id = %s"
+                        ).format(psycopg.sql.Identifier(table)),
+                        (target_session_id, source_session_id),
+                    )
+                conn.execute("DELETE FROM app_session WHERE session_id = %s", (source_session_id,))
+                conn.commit()
+        except Exception as exc:
+            logger.warning(
+                "personal session merge failed", extra={"error_type": type(exc).__name__}
+            )
+            raise GosariError("DATABASE_UNAVAILABLE") from exc
 
     def _sweep(self) -> None:
         now = utcnow()

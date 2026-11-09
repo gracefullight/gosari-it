@@ -16,6 +16,7 @@ from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from litestar.types import ASGIApp, Message, Receive, Scope, Send
 
 from gosari.agent.coordinator import close_coordinator
+from gosari.api.account import AccountController
 from gosari.api.analysis import AnalysisController, JobsController
 from gosari.api.consent import ActionsController, ConsentsController
 from gosari.api.contacts import ContactsController
@@ -193,6 +194,7 @@ def create_app() -> Litestar:
         HealthController,
         CapabilitiesController,
         SessionsController,
+        AccountController,
         AnalysisController,
         JobsController,
         StationsController,

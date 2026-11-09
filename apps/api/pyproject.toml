@@ -19,6 +19,7 @@ dependencies = [
     # Linux 컨테이너는 CPU 전용 휠 고정 (CUDA 의존성으로 이미지 비대화 방지)
     "torch==2.15.0+cpu; sys_platform == 'linux'",
     "torch>=2.15.0; sys_platform == 'darwin'",
+    "argon2-cffi>=25.1.0",
 ]
 
 [dependency-groups]
