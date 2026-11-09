@@ -42,14 +42,22 @@ flowchart LR
 
 ## ERD
 
-테이블 14개가 한 DB에 있다. 개인 기록 4개 테이블은 `app_session`을 외래 키로 참조하며 세션이 끝나면 함께 지운다. 공개 자료 테이블은 외래 키 없이 `station_id`·`source_id`·`evidence_id` 문자열로 느슨하게 연결한다. 응답 캐시의 `embedding`은 pgvector 384차원이며 현재는 순차 탐색이고 벡터 인덱스는 만들지 않았다.
+테이블 15개가 한 DB에 있다. 개인 기록 4개 테이블은 `app_session`을 외래 키로 참조하며 세션이 끝나면 함께 지운다. 회원(`app_member`)은 세션 하나를 기본 세션으로 가지며, 다른 브라우저에서 로그인하면 그 브라우저의 익명 세션 기록을 기본 세션으로 옮긴다. 공개 자료 테이블은 외래 키 없이 `station_id`·`source_id`·`evidence_id` 문자열로 느슨하게 연결한다. 응답 캐시의 `embedding`은 pgvector 384차원이며 현재는 순차 탐색이고 벡터 인덱스는 만들지 않았다.
 
 ### 세션과 개인 기록
 
 ```mermaid
 erDiagram
+    app_member {
+        text member_id PK
+        text login_id UK
+        text password_hash
+        timestamptz created_at
+        timestamptz last_login_at
+    }
     app_session {
         text session_id PK
+        text member_id FK
         timestamptz created_at
         timestamptz expires_at
         timestamptz last_activity_at
@@ -109,6 +117,7 @@ erDiagram
         jsonb public_evidence_ids
         timestamptz prepared_at
     }
+    app_member ||--o{ app_session : "member_id"
     app_session ||--o{ personal_contact : "session_id"
     app_session ||--o{ personal_notebook_entry : "session_id"
     app_session ||--o{ personal_private_region : "session_id"
@@ -299,7 +308,8 @@ erDiagram
 
 | 테이블 | 역할 |
 | --- | --- |
-| app_session | 브라우저 세션. 개인 기록의 소유 단위이며 기본 365일 보관 |
+| app_member | 회원 계정. 아이디와 Argon2id 비밀번호 해시만 보관 |
+| app_session | 브라우저 세션. 개인 기록의 소유 단위이며 기본 365일 보관. 회원에 연결되면 회원의 기본 세션 |
 | personal_notebook_entry | 내 수첩 채취 기록(위치·참고 자료 포함) |
 | personal_private_region | 관심 장소 핀·방문일·메모 |
 | personal_contact | 지인 관계 |
