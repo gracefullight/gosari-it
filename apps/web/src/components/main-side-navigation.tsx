@@ -49,9 +49,19 @@ interface MainSideNavigationProps {
   open: boolean;
   onToggle: () => void;
   onEndSession: () => void;
+  loginId?: string | null;
+  onOpenAccount?: () => void;
+  onLogout?: () => void;
 }
 
-export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNavigationProps) {
+export function MainSideNavigation({
+  open,
+  onToggle,
+  onEndSession,
+  loginId = null,
+  onOpenAccount,
+  onLogout,
+}: MainSideNavigationProps) {
   const formatHotkey = useFormatForDisplay();
   const activeFeature = useAtomValue(activeFeatureAtom);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -164,15 +174,41 @@ export function MainSideNavigation({ open, onToggle, onEndSession }: MainSideNav
         <Menu.Portal>
           <Menu.Positioner side="top" align="end" sideOffset={8} className="z-50">
             <Menu.Popup className="min-w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg outline-none">
-              <Menu.Item
-                onClick={() => {
-                  setMobileOpen(false);
-                  onEndSession();
-                }}
-                className="cursor-pointer rounded-lg px-3 py-2.5 text-base text-destructive outline-none data-[highlighted]:bg-destructive/10"
-              >
-                개인 기록 초기화
-              </Menu.Item>
+              {loginId ? (
+                <>
+                  <p className="px-3 py-2 text-sm text-muted-foreground">{loginId} 님</p>
+                  <Menu.Item
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onLogout?.();
+                    }}
+                    className="cursor-pointer rounded-lg px-3 py-2.5 text-base outline-none data-[highlighted]:bg-accent"
+                  >
+                    로그아웃
+                  </Menu.Item>
+                </>
+              ) : (
+                <>
+                  <Menu.Item
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onOpenAccount?.();
+                    }}
+                    className="cursor-pointer rounded-lg px-3 py-2.5 text-base outline-none data-[highlighted]:bg-accent"
+                  >
+                    로그인·회원가입
+                  </Menu.Item>
+                  <Menu.Item
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onEndSession();
+                    }}
+                    className="cursor-pointer rounded-lg px-3 py-2.5 text-base text-destructive outline-none data-[highlighted]:bg-destructive/10"
+                  >
+                    개인 기록 초기화
+                  </Menu.Item>
+                </>
+              )}
             </Menu.Popup>
           </Menu.Positioner>
         </Menu.Portal>

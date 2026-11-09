@@ -24,7 +24,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountState,
   ActionResult,
+  ApiV1AccountLoginLogin400,
+  ApiV1AccountSignupSignup400,
   ApiV1ActionsActionIdGetAction400,
   ApiV1AnalysisChatChat400,
   ApiV1AnalysisChatChatBody,
@@ -77,6 +80,7 @@ import type {
   ChatJobResponse,
   Consent,
   ContactListResponse,
+  CredentialsBody,
   JobResponse,
   LiveStatus,
   NotebookEntry,
@@ -626,6 +630,419 @@ export const useApiV1SessionsCurrentEnd = <TError = unknown,
         TContext
       > => {
       return useMutation(getApiV1SessionsCurrentEndMutationOptions(options), queryClient);
+    }
+
+export type apiV1AccountLoginLoginResponse200 = {
+  data: AccountState
+  status: 200
+}
+
+export type apiV1AccountLoginLoginResponse400 = {
+  data: ApiV1AccountLoginLogin400
+  status: 400
+}
+
+export type apiV1AccountLoginLoginResponseSuccess = (apiV1AccountLoginLoginResponse200) & {
+  headers: Headers;
+};
+export type apiV1AccountLoginLoginResponseError = (apiV1AccountLoginLoginResponse400) & {
+  headers: Headers;
+};
+
+export type apiV1AccountLoginLoginResponse = (apiV1AccountLoginLoginResponseSuccess | apiV1AccountLoginLoginResponseError)
+
+export const getApiV1AccountLoginLoginUrl = () => {
+
+
+
+
+  return `/api/v1/account/login`
+}
+
+/**
+ * @summary Login
+ */
+export const apiV1AccountLoginLogin = async (credentialsBody: CredentialsBody, options?: Parameters<typeof customFetch>[1]): Promise<apiV1AccountLoginLoginResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<apiV1AccountLoginLoginResponse>(getApiV1AccountLoginLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(credentialsBody)
+  }
+);}
+
+
+
+
+
+export const getApiV1AccountLoginLoginMutationKey = () => ['apiV1AccountLoginLogin'] as const;
+
+export const getApiV1AccountLoginLoginMutationOptions = <TError = ApiV1AccountLoginLogin400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLoginLogin>>, TError,ApiV1AccountLoginLoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLoginLogin>>, TError,ApiV1AccountLoginLoginMutationVariables, TContext> => {
+
+const mutationKey = getApiV1AccountLoginLoginMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1AccountLoginLogin>>, ApiV1AccountLoginLoginMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  apiV1AccountLoginLogin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApiV1AccountLoginLoginMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1AccountLoginLogin>>>
+    export type ApiV1AccountLoginLoginMutationBody = CredentialsBody
+    export type ApiV1AccountLoginLoginMutationError = ApiV1AccountLoginLogin400
+    export type ApiV1AccountLoginLoginMutationVariables = {data: CredentialsBody}
+
+    /**
+ * @summary Login
+ */
+export const useApiV1AccountLoginLogin = <TError = ApiV1AccountLoginLogin400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLoginLogin>>, TError,ApiV1AccountLoginLoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof apiV1AccountLoginLogin>>,
+        TError,
+        ApiV1AccountLoginLoginMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApiV1AccountLoginLoginMutationOptions(options), queryClient);
+    }
+
+export type apiV1AccountLogoutLogoutResponse200 = {
+  data: AccountState
+  status: 200
+}
+
+export type apiV1AccountLogoutLogoutResponseSuccess = (apiV1AccountLogoutLogoutResponse200) & {
+  headers: Headers;
+};
+;
+
+export type apiV1AccountLogoutLogoutResponse = (apiV1AccountLogoutLogoutResponseSuccess)
+
+export const getApiV1AccountLogoutLogoutUrl = () => {
+
+
+
+
+  return `/api/v1/account/logout`
+}
+
+/**
+ * @summary Logout
+ */
+export const apiV1AccountLogoutLogout = async ( options?: Parameters<typeof customFetch>[1]): Promise<apiV1AccountLogoutLogoutResponse> => {
+
+  return customFetch<apiV1AccountLogoutLogoutResponse>(getApiV1AccountLogoutLogoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApiV1AccountLogoutLogoutMutationKey = () => ['apiV1AccountLogoutLogout'] as const;
+
+export const getApiV1AccountLogoutLogoutMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>, TError,void, TContext> => {
+
+const mutationKey = getApiV1AccountLogoutLogoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>, void> = () => {
+
+
+          return  apiV1AccountLogoutLogout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApiV1AccountLogoutLogoutMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>>
+
+    export type ApiV1AccountLogoutLogoutMutationError = unknown
+
+
+    /**
+ * @summary Logout
+ */
+export const useApiV1AccountLogoutLogout = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof apiV1AccountLogoutLogout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getApiV1AccountLogoutLogoutMutationOptions(options), queryClient);
+    }
+
+export type apiV1AccountMeResponse200 = {
+  data: AccountState
+  status: 200
+}
+
+export type apiV1AccountMeResponseSuccess = (apiV1AccountMeResponse200) & {
+  headers: Headers;
+};
+;
+
+export type apiV1AccountMeResponse = (apiV1AccountMeResponseSuccess)
+
+export const getApiV1AccountMeUrl = () => {
+
+
+
+
+  return `/api/v1/account`
+}
+
+/**
+ * @summary Me
+ */
+export const apiV1AccountMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<apiV1AccountMeResponse> => {
+
+  return customFetch<apiV1AccountMeResponse>(getApiV1AccountMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getApiV1AccountMeQueryKey = () => {
+    return [
+    `/api/v1/account`
+    ] as const;
+    }
+
+
+export const getApiV1AccountMeQueryOptions = <TData = Awaited<ReturnType<typeof apiV1AccountMe>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getApiV1AccountMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof apiV1AccountMe>>> = ({ signal }) => apiV1AccountMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ApiV1AccountMeQueryResult = NonNullable<Awaited<ReturnType<typeof apiV1AccountMe>>>
+export type ApiV1AccountMeQueryError = unknown
+
+
+export function useApiV1AccountMe<TData = Awaited<ReturnType<typeof apiV1AccountMe>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof apiV1AccountMe>>,
+          TError,
+          Awaited<ReturnType<typeof apiV1AccountMe>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useApiV1AccountMe<TData = Awaited<ReturnType<typeof apiV1AccountMe>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof apiV1AccountMe>>,
+          TError,
+          Awaited<ReturnType<typeof apiV1AccountMe>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useApiV1AccountMe<TData = Awaited<ReturnType<typeof apiV1AccountMe>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Me
+ */
+
+export function useApiV1AccountMe<TData = Awaited<ReturnType<typeof apiV1AccountMe>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof apiV1AccountMe>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getApiV1AccountMeQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type apiV1AccountSignupSignupResponse201 = {
+  data: AccountState
+  status: 201
+}
+
+export type apiV1AccountSignupSignupResponse400 = {
+  data: ApiV1AccountSignupSignup400
+  status: 400
+}
+
+export type apiV1AccountSignupSignupResponseSuccess = (apiV1AccountSignupSignupResponse201) & {
+  headers: Headers;
+};
+export type apiV1AccountSignupSignupResponseError = (apiV1AccountSignupSignupResponse400) & {
+  headers: Headers;
+};
+
+export type apiV1AccountSignupSignupResponse = (apiV1AccountSignupSignupResponseSuccess | apiV1AccountSignupSignupResponseError)
+
+export const getApiV1AccountSignupSignupUrl = () => {
+
+
+
+
+  return `/api/v1/account/signup`
+}
+
+/**
+ * @summary Signup
+ */
+export const apiV1AccountSignupSignup = async (credentialsBody: CredentialsBody, options?: Parameters<typeof customFetch>[1]): Promise<apiV1AccountSignupSignupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<apiV1AccountSignupSignupResponse>(getApiV1AccountSignupSignupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(credentialsBody)
+  }
+);}
+
+
+
+
+
+export const getApiV1AccountSignupSignupMutationKey = () => ['apiV1AccountSignupSignup'] as const;
+
+export const getApiV1AccountSignupSignupMutationOptions = <TError = ApiV1AccountSignupSignup400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountSignupSignup>>, TError,ApiV1AccountSignupSignupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountSignupSignup>>, TError,ApiV1AccountSignupSignupMutationVariables, TContext> => {
+
+const mutationKey = getApiV1AccountSignupSignupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof apiV1AccountSignupSignup>>, ApiV1AccountSignupSignupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  apiV1AccountSignupSignup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApiV1AccountSignupSignupMutationResult = NonNullable<Awaited<ReturnType<typeof apiV1AccountSignupSignup>>>
+    export type ApiV1AccountSignupSignupMutationBody = CredentialsBody
+    export type ApiV1AccountSignupSignupMutationError = ApiV1AccountSignupSignup400
+    export type ApiV1AccountSignupSignupMutationVariables = {data: CredentialsBody}
+
+    /**
+ * @summary Signup
+ */
+export const useApiV1AccountSignupSignup = <TError = ApiV1AccountSignupSignup400,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof apiV1AccountSignupSignup>>, TError,ApiV1AccountSignupSignupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof apiV1AccountSignupSignup>>,
+        TError,
+        ApiV1AccountSignupSignupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApiV1AccountSignupSignupMutationOptions(options), queryClient);
     }
 
 export type apiV1AnalysisChatChatResponse201 = {

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { AccountDialog } from "@/components/account-dialog";
 import { ChatShell } from "@/components/chat-shell";
 import { MainSideNavigation } from "@/components/main-side-navigation";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/gosari.api";
 import {
+  accountLoginIdAtom,
   capabilitiesAtom,
   lnbOpenAtom,
   sessionEndedAtom,
@@ -26,6 +28,8 @@ export function AppShell() {
   const [sessionEnded, setSessionEnded] = useAtom(sessionEndedAtom);
   const setCapabilities = useSetAtom(capabilitiesAtom);
   const [lnbOpen, setLnbOpen] = useAtom(lnbOpenAtom);
+  const [loginId, setLoginId] = useAtom(accountLoginIdAtom);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
@@ -37,8 +41,10 @@ export function AppShell() {
       try {
         await api.createSession();
         const caps = await api.capabilities();
+        const account = await api.accountMe().catch(() => null);
         if (!cancelled) {
           setCapabilities(caps);
+          setLoginId(account?.login_id ?? null);
           setSessionReady(true);
         }
       } catch {
@@ -49,7 +55,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [setCapabilities, setSessionReady]);
+  }, [setCapabilities, setLoginId, setSessionReady]);
 
   async function endSession() {
     if (resetBusy) return;
@@ -64,6 +70,15 @@ export function AppShell() {
       setResetError("개인 기록을 초기화하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setResetBusy(false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await api.logout();
+    } finally {
+      queryClient.clear();
+      window.location.reload();
     }
   }
 
@@ -92,6 +107,9 @@ export function AppShell() {
           setResetError(null);
           setResetOpen(true);
         }}
+        loginId={loginId}
+        onOpenAccount={() => setAccountOpen(true)}
+        onLogout={() => void logout()}
       />
       <main
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
@@ -110,6 +128,14 @@ export function AppShell() {
           <ChatShell />
         )}
       </main>
+      <AccountDialog
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+        onDone={() => {
+          queryClient.clear();
+          window.location.reload();
+        }}
+      />
       <Dialog
         open={resetOpen}
         onOpenChange={(open) => {

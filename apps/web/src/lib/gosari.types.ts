@@ -181,6 +181,13 @@ export interface ActionResult {
   media_type?: string;
 }
 
+/** 현재 세션의 회원 상태. 익명이면 login_id가 null이다. */
+export interface AccountState {
+  login_id: string | null;
+  session_id: string;
+  merged: Record<string, number>;
+}
+
 export interface Capabilities {
   profile: string;
   runtime_mode: "live" | "replay" | "limited";

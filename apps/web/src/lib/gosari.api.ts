@@ -5,6 +5,7 @@ import {
   waitForAnalysisJob,
 } from "@/lib/analysis-jobs";
 import type {
+  AccountState,
   ActionResult,
   AgentChatRequest,
   AgentChatResponse,
@@ -97,6 +98,28 @@ export const api = {
     });
     setStoredSessionId(null);
     return result;
+  },
+  accountMe: () => request<AccountState>("/api/v1/account/"),
+  signup: async (body: { login_id: string; password: string }) => {
+    const state = await request<AccountState>("/api/v1/account/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    setStoredSessionId(state.session_id);
+    return state;
+  },
+  login: async (body: { login_id: string; password: string }) => {
+    const state = await request<AccountState>("/api/v1/account/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    setStoredSessionId(state.session_id);
+    return state;
+  },
+  logout: async () => {
+    const state = await request<AccountState>("/api/v1/account/logout", { method: "POST" });
+    setStoredSessionId(state.session_id);
+    return state;
   },
   capabilities: () => request<Capabilities>("/api/v1/capabilities"),
   prepare: (body: { text: string; feature?: string }) =>

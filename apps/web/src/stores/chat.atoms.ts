@@ -35,6 +35,7 @@ export interface ChatMessage {
 
 export const sessionReadyAtom = atom(false);
 export const sessionEndedAtom = atom(false);
+export const accountLoginIdAtom = atom<string | null>(null);
 export const capabilitiesAtom = atom<Capabilities | null>(null);
 export const onboardingDoneAtom = atom(true);
 export const appPathAtom = atom(
